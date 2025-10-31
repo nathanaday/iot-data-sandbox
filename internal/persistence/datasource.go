@@ -1,14 +1,14 @@
 package persistence
 
-import "github.com/nathanaday/iot-data-sandbox/models"
+import "github.com/nathanaday/iot-data-sandbox/internal/models"
 
 // SaveDataSource inserts or updates a DataSource
 func (s *Store) SaveDataSource(ds *models.DataSource) error {
 	if ds.DataSourceId == 0 {
 		result, err := s.db.Exec(`
-            INSERT INTO data_sources (name, data_source_type, data_source_path, when_created)
-            VALUES (?, ?, ?, ?)`,
-			ds.Name, ds.DataSourceType, ds.DataSourcePath, ds.WhenCreated,
+            INSERT INTO data_sources (name, data_source_type, data_source_path, row_count, start_time, end_time, time_label, value_label, when_created)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			ds.Name, ds.DataSourceType, ds.DataSourcePath, ds.RowCount, ds.StartTime, ds.EndTime, ds.TimeLabel, ds.ValueLabel, ds.WhenCreated,
 		)
 		if err != nil {
 			return err
@@ -16,10 +16,10 @@ func (s *Store) SaveDataSource(ds *models.DataSource) error {
 		ds.DataSourceId, _ = result.LastInsertId()
 	} else {
 		_, err := s.db.Exec(`
-            UPDATE data_sources 
-            SET name=?, data_source_type=?, data_source_path=?, when_created=?
+            UPDATE data_sources
+            SET name=?, data_source_type=?, data_source_path=?, row_count=?, start_time=?, end_time=?, time_label=?, value_label=?, when_created=?
             WHERE data_source_id=?`,
-			ds.Name, ds.DataSourceType, ds.DataSourcePath, ds.WhenCreated, ds.DataSourceId,
+			ds.Name, ds.DataSourceType, ds.DataSourcePath, ds.RowCount, ds.StartTime, ds.EndTime, ds.TimeLabel, ds.ValueLabel, ds.WhenCreated, ds.DataSourceId,
 		)
 		return err
 	}
@@ -30,9 +30,9 @@ func (s *Store) SaveDataSource(ds *models.DataSource) error {
 func (s *Store) LoadDataSource(id int64) (*models.DataSource, error) {
 	ds := &models.DataSource{}
 	err := s.db.QueryRow(`
-        SELECT data_source_id, name, data_source_type, data_source_path, when_created
+        SELECT data_source_id, name, data_source_type, data_source_path, row_count, start_time, end_time, time_label, value_label, when_created
         FROM data_sources WHERE data_source_id=?`, id,
-	).Scan(&ds.DataSourceId, &ds.Name, &ds.DataSourceType, &ds.DataSourcePath, &ds.WhenCreated)
+	).Scan(&ds.DataSourceId, &ds.Name, &ds.DataSourceType, &ds.DataSourcePath, &ds.RowCount, &ds.StartTime, &ds.EndTime, &ds.TimeLabel, &ds.ValueLabel, &ds.WhenCreated)
 
 	if err != nil {
 		return nil, err
@@ -43,7 +43,7 @@ func (s *Store) LoadDataSource(id int64) (*models.DataSource, error) {
 // LoadAllDataSources retrieves all DataSources ordered by creation date
 func (s *Store) LoadAllDataSources() ([]*models.DataSource, error) {
 	rows, err := s.db.Query(`
-        SELECT data_source_id, name, data_source_type, data_source_path, when_created
+        SELECT data_source_id, name, data_source_type, data_source_path, row_count, start_time, end_time, time_label, value_label, when_created
         FROM data_sources ORDER BY when_created DESC`)
 	if err != nil {
 		return nil, err
@@ -54,7 +54,7 @@ func (s *Store) LoadAllDataSources() ([]*models.DataSource, error) {
 	for rows.Next() {
 		ds := &models.DataSource{}
 		if err := rows.Scan(&ds.DataSourceId, &ds.Name, &ds.DataSourceType,
-			&ds.DataSourcePath, &ds.WhenCreated); err != nil {
+			&ds.DataSourcePath, &ds.RowCount, &ds.StartTime, &ds.EndTime, &ds.TimeLabel, &ds.ValueLabel, &ds.WhenCreated); err != nil {
 			return nil, err
 		}
 		sources = append(sources, ds)

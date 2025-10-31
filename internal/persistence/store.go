@@ -39,6 +39,11 @@ func createTables(db *sql.DB) error {
         name TEXT NOT NULL,
         data_source_type INTEGER NOT NULL,
         data_source_path TEXT NOT NULL,
+        row_count INTEGER NOT NULL DEFAULT 0,
+        start_time TIMESTAMP,
+        end_time TIMESTAMP,
+        time_label TEXT NOT NULL DEFAULT 'time',
+        value_label TEXT NOT NULL DEFAULT 'value',
         when_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 

@@ -1,0 +1,228 @@
+basePath: /
+definitions:
+  api.DataPoint:
+    properties:
+      timestamp:
+        type: string
+      value:
+        type: number
+    type: object
+  api.DataQueryResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/api.DataPoint'
+        type: array
+      end_time:
+        type: string
+      row_count:
+        type: integer
+      start_time:
+        type: string
+    type: object
+  api.DataSourceListResponse:
+    properties:
+      data_sources:
+        items:
+          $ref: '#/definitions/api.DataSourceMetadata'
+        type: array
+    type: object
+  api.DataSourceMetadata:
+    properties:
+      data_source_id:
+        type: integer
+      end_time:
+        type: string
+      name:
+        type: string
+      row_count:
+        type: integer
+      start_time:
+        type: string
+      type:
+        type: string
+      when_created:
+        type: string
+    type: object
+  api.ErrorResponse:
+    properties:
+      error:
+        type: string
+    type: object
+  api.UploadResponse:
+    properties:
+      data_source_id:
+        type: integer
+      end_time:
+        type: string
+      name:
+        type: string
+      row_count:
+        type: integer
+      start_time:
+        type: string
+      when_created:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact:
+    name: API Support
+  description: |-
+    API for managing and querying time series data from IoT sensors
+
+    This API allows you to upload CSV files containing time series data,
+    query the data with time range filters, and manage datasources.
+
+    Supported timestamp formats: ISO8601, RFC3339, Unix timestamps (seconds/milliseconds), Julian Day
+  license:
+    name: MIT
+  termsOfService: http://swagger.io/terms/
+  title: IoT Data Sandbox API
+  version: "1.0"
+paths:
+  /api/datasources:
+    get:
+      description: Get a list of all registered datasources with their metadata
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.DataSourceListResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: List all datasources
+      tags:
+      - datasources
+    post:
+      consumes:
+      - multipart/form-data
+      description: Upload a CSV file containing time series data. The CSV must have
+        'timestamp' and 'value' columns. Supports various timestamp formats (ISO8601,
+        Unix, Julian Day).
+      parameters:
+      - description: CSV file to upload
+        in: formData
+        name: file
+        required: true
+        type: file
+      - description: Name for the datasource (defaults to filename)
+        in: formData
+        name: name
+        type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/api.UploadResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Upload a CSV datasource
+      tags:
+      - datasources
+  /api/datasources/{id}:
+    delete:
+      description: Delete a datasource and its associated CSV file
+      parameters:
+      - description: Datasource ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Delete a datasource
+      tags:
+      - datasources
+    get:
+      description: Get metadata for a specific datasource by ID
+      parameters:
+      - description: Datasource ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.DataSourceMetadata'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Get datasource metadata
+      tags:
+      - datasources
+  /api/datasources/{id}/data:
+    get:
+      description: Query time series data from a datasource with optional time range
+        filtering
+      parameters:
+      - description: Datasource ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Start time in RFC3339 format (e.g., 2024-01-01T00:00:00Z)
+        in: query
+        name: start_time
+        type: string
+      - description: End time in RFC3339 format (e.g., 2024-01-01T23:59:59Z)
+        in: query
+        name: end_time
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.DataQueryResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Query time series data
+      tags:
+      - datasources
+swagger: "2.0"

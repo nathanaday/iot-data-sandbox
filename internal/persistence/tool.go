@@ -3,7 +3,7 @@ package persistence
 import (
 	"database/sql"
 
-	"github.com/nathanaday/iot-data-sandbox/models"
+	"github.com/nathanaday/iot-data-sandbox/internal/models"
 )
 
 // SaveTool inserts or updates a Tool with its auth properties
