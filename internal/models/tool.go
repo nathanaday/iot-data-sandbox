@@ -2,22 +2,22 @@ package models
 
 import "time"
 
-type ToolModel struct {
+type Tool struct {
 	ToolId       int64
 	Name         string
 	FxName       string
 	TimeoutS     int
 	IsEnabled    bool
-	WhenLastCall *time.Time // pointer to handle NULL
+	WhenLastCall *time.Time
 	NumCalls     int
-	MaxCalls     *int // pointer to handle NULL
-	NumCallReset *int // pointer to handle NULL
+	MaxCalls     *int
+	NumCallReset *int
 	AuthProps    *ToolAuthProps
 }
 
 type ToolAuthProps struct {
 	ToolId         int64
-	HashedApiKey   *string // pointer to handle NULL
+	HashedApiKey   *string
 	HashedUsername *string
 	HashedPassword *string
 }

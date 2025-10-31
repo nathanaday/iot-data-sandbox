@@ -6,8 +6,8 @@ import (
 	"github.com/nathanaday/iot-data-sandbox/models"
 )
 
-// SaveTool inserts or updates a ToolModel with its auth properties
-func (s *Store) SaveTool(tool *models.ToolModel) error {
+// SaveTool inserts or updates a Tool with its auth properties
+func (s *Store) SaveTool(tool *models.Tool) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
@@ -60,9 +60,9 @@ func (s *Store) SaveTool(tool *models.ToolModel) error {
 	return tx.Commit()
 }
 
-// LoadTool retrieves a ToolModel by ID including auth properties
-func (s *Store) LoadTool(id int64) (*models.ToolModel, error) {
-	tool := &models.ToolModel{}
+// LoadTool retrieves a Tool by ID including auth properties
+func (s *Store) LoadTool(id int64) (*models.Tool, error) {
+	tool := &models.Tool{}
 	err := s.db.QueryRow(`
         SELECT tool_id, name, fx_name, timeout_s, is_enabled, when_last_call,
                num_calls, max_calls, num_call_reset
@@ -91,8 +91,8 @@ func (s *Store) LoadTool(id int64) (*models.ToolModel, error) {
 	return tool, nil
 }
 
-// LoadEnabledTools retrieves all enabled ToolModels
-func (s *Store) LoadEnabledTools() ([]*models.ToolModel, error) {
+// LoadEnabledTools retrieves all enabled Tools
+func (s *Store) LoadEnabledTools() ([]*models.Tool, error) {
 	rows, err := s.db.Query(`
         SELECT tool_id, name, fx_name, timeout_s, is_enabled, when_last_call,
                num_calls, max_calls, num_call_reset
@@ -102,9 +102,9 @@ func (s *Store) LoadEnabledTools() ([]*models.ToolModel, error) {
 	}
 	defer rows.Close()
 
-	var tools []*models.ToolModel
+	var tools []*models.Tool
 	for rows.Next() {
-		tool := &models.ToolModel{}
+		tool := &models.Tool{}
 		if err := rows.Scan(&tool.ToolId, &tool.Name, &tool.FxName, &tool.TimeoutS,
 			&tool.IsEnabled, &tool.WhenLastCall, &tool.NumCalls,
 			&tool.MaxCalls, &tool.NumCallReset); err != nil {
@@ -115,7 +115,7 @@ func (s *Store) LoadEnabledTools() ([]*models.ToolModel, error) {
 	return tools, rows.Err()
 }
 
-// DeleteTool removes a ToolModel by ID (auth props cascade delete automatically)
+// DeleteTool removes a Tool by ID (auth props cascade delete automatically)
 func (s *Store) DeleteTool(id int64) error {
 	// Auth props will be deleted automatically due to CASCADE
 	_, err := s.db.Exec("DELETE FROM tools WHERE tool_id=?", id)
