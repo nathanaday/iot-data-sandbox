@@ -3,11 +3,11 @@ package persistence
 import (
 	"database/sql"
 
-	"github.com/nathanaday/iot-data-sandbox/internal/schemas"
+	"github.com/nathanaday/iot-data-sandbox/internal/models"
 )
 
 // SaveTool inserts or updates a Tool with its auth properties
-func (s *Store) SaveTool(tool *schemas.ToolSchema) error {
+func (s *Store) SaveTool(tool *models.Tool) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
@@ -61,8 +61,8 @@ func (s *Store) SaveTool(tool *schemas.ToolSchema) error {
 }
 
 // LoadTool retrieves a Tool by ID including auth properties
-func (s *Store) LoadTool(id int64) (*schemas.ToolSchema, error) {
-	tool := &schemas.ToolSchema{}
+func (s *Store) LoadTool(id int64) (*models.Tool, error) {
+	tool := &models.Tool{}
 	err := s.db.QueryRow(`
         SELECT tool_id, name, fx_name, timeout_s, is_enabled, when_last_call,
                num_calls, max_calls, num_call_reset
@@ -75,7 +75,7 @@ func (s *Store) LoadTool(id int64) (*schemas.ToolSchema, error) {
 	}
 
 	// Load auth props if they exist
-	authProps := &schemas.ToolAuthPropsSchema{}
+	authProps := &models.ToolAuthProps{}
 	err = s.db.QueryRow(`
         SELECT tool_id, hashed_api_key, hashed_username, hashed_password
         FROM tool_auth_props WHERE tool_id=?`, id,
@@ -92,7 +92,7 @@ func (s *Store) LoadTool(id int64) (*schemas.ToolSchema, error) {
 }
 
 // LoadEnabledTools retrieves all enabled Tools
-func (s *Store) LoadEnabledTools() ([]*schemas.ToolSchema, error) {
+func (s *Store) LoadEnabledTools() ([]*models.Tool, error) {
 	rows, err := s.db.Query(`
         SELECT tool_id, name, fx_name, timeout_s, is_enabled, when_last_call,
                num_calls, max_calls, num_call_reset
@@ -102,9 +102,9 @@ func (s *Store) LoadEnabledTools() ([]*schemas.ToolSchema, error) {
 	}
 	defer rows.Close()
 
-	var tools []*schemas.ToolSchema
+	var tools []*models.Tool
 	for rows.Next() {
-		tool := &schemas.ToolSchema{}
+		tool := &models.Tool{}
 		if err := rows.Scan(&tool.ToolId, &tool.Name, &tool.FxName, &tool.TimeoutS,
 			&tool.IsEnabled, &tool.WhenLastCall, &tool.NumCalls,
 			&tool.MaxCalls, &tool.NumCallReset); err != nil {

@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/nathanaday/iot-data-sandbox/internal/models"
 	"github.com/nathanaday/iot-data-sandbox/internal/storage"
 )
 
@@ -51,10 +50,9 @@ func (h *DataSourceHandler) UploadCSV(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Use the new FromCSV constructor to create datasource with in-memory data
+	// Use the datasource service to create datasource with in-memory data
 	// It handles CSV validation and loading automatically
-	// Pass savedFilename (not full path) - FromCSV will get the full path internally
-	dataSource, err := models.FromCSV(name, savedFilename, h.store, h.fileStore)
+	dataSource, err := h.datasourceService.CreateFromCSV(name, savedFilename)
 	if err != nil {
 		h.fileStore.DeleteFile(savedFilename)
 		respondError(w, fmt.Sprintf("Failed to create datasource: %v", err), http.StatusBadRequest)

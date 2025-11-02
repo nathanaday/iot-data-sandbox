@@ -8,18 +8,21 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/nathanaday/iot-data-sandbox/internal/models"
 	"github.com/nathanaday/iot-data-sandbox/internal/persistence"
+	"github.com/nathanaday/iot-data-sandbox/internal/services"
 	"github.com/nathanaday/iot-data-sandbox/internal/storage"
 )
 
 type DataSourceHandler struct {
-	store     *persistence.Store
-	fileStore *storage.FileStore
+	store             *persistence.Store
+	fileStore         *storage.FileStore
+	datasourceService *services.DataSourceService
 }
 
 func NewDataSourceHandler(store *persistence.Store, fileStore *storage.FileStore) *DataSourceHandler {
 	return &DataSourceHandler{
-		store:     store,
-		fileStore: fileStore,
+		store:             store,
+		fileStore:         fileStore,
+		datasourceService: services.NewDataSourceService(store, fileStore),
 	}
 }
 
@@ -32,7 +35,7 @@ func NewDataSourceHandler(store *persistence.Store, fileStore *storage.FileStore
 // @Failure 500 {object} ErrorResponse
 // @Router /api/datasources [get]
 func (h *DataSourceHandler) ListDataSources(w http.ResponseWriter, r *http.Request) {
-	schemas, err := h.store.LoadAllDataSources()
+	schemas, err := h.store.FindAll()
 	if err != nil {
 		respondError(w, fmt.Sprintf("Failed to load datasources: %v", err), http.StatusInternalServerError)
 		return
@@ -73,7 +76,7 @@ func (h *DataSourceHandler) GetDataSource(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	schema, err := h.store.LoadDataSource(id)
+	schema, err := h.store.FindByID(id)
 	if err != nil {
 		respondError(w, "Datasource not found", http.StatusNotFound)
 		return
@@ -111,7 +114,7 @@ func (h *DataSourceHandler) DeleteDataSource(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	schema, err := h.store.LoadDataSource(id)
+	schema, err := h.store.FindByID(id)
 	if err != nil {
 		respondError(w, "Datasource not found", http.StatusNotFound)
 		return
@@ -122,7 +125,7 @@ func (h *DataSourceHandler) DeleteDataSource(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if err := h.store.DeleteDataSource(id); err != nil {
+	if err := h.store.Delete(id); err != nil {
 		respondError(w, fmt.Sprintf("Failed to delete datasource: %v", err), http.StatusInternalServerError)
 		return
 	}

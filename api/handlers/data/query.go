@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/nathanaday/iot-data-sandbox/internal/models"
 )
 
 // QueryData godoc
@@ -29,8 +28,8 @@ func (h *DataSourceHandler) QueryData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Load datasource with data
-	ds, err := models.LoadFromStorage(id, h.store, h.fileStore)
+	// Load datasource with data using the service layer
+	ds, err := h.datasourceService.LoadByID(id)
 	if err != nil {
 		respondError(w, "Datasource not found", http.StatusNotFound)
 		return

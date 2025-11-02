@@ -1,6 +1,9 @@
 package persistence
 
-import "github.com/nathanaday/iot-data-sandbox/internal/schemas"
+import (
+	"github.com/nathanaday/iot-data-sandbox/internal/models"
+	"github.com/nathanaday/iot-data-sandbox/internal/schemas"
+)
 
 // SaveLayer inserts or updates a DataLayer
 func (s *Store) SaveLayer(layer *schemas.DataLayerSchema) error {
@@ -111,7 +114,7 @@ func (s *Store) LoadLayerWithDataSource(layerId int64) (*schemas.DataLayerSchema
 		return nil, nil, err
 	}
 
-	dataSource, err := s.LoadDataSource(layer.DataSourceId)
+	dataSource, err := s.FindByID(layer.DataSourceId)
 	if err != nil {
 		return layer, nil, err
 	}
@@ -121,13 +124,13 @@ func (s *Store) LoadLayerWithDataSource(layerId int64) (*schemas.DataLayerSchema
 
 // LoadLayerWithProjectAndDataSource retrieves a DataLayer with both its Project and DataSource
 // This provides complete context for working with a layer
-func (s *Store) LoadLayerWithProjectAndDataSource(layerId int64) (*schemas.DataLayerSchema, *schemas.ProjectSchema, *schemas.DataSourceSchema, error) {
+func (s *Store) LoadLayerWithProjectAndDataSource(layerId int64) (*schemas.DataLayerSchema, *models.Project, *schemas.DataSourceSchema, error) {
 	layer, err := s.LoadLayer(layerId)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	var project *schemas.ProjectSchema
+	var project *models.Project
 	if layer.ProjectId != 0 {
 		project, err = s.LoadProject(layer.ProjectId)
 		if err != nil {
@@ -135,7 +138,7 @@ func (s *Store) LoadLayerWithProjectAndDataSource(layerId int64) (*schemas.DataL
 		}
 	}
 
-	dataSource, err := s.LoadDataSource(layer.DataSourceId)
+	dataSource, err := s.FindByID(layer.DataSourceId)
 	if err != nil {
 		return layer, project, nil, err
 	}

@@ -1,9 +1,15 @@
 package persistence
 
-import "github.com/nathanaday/iot-data-sandbox/internal/schemas"
+import (
+	"github.com/nathanaday/iot-data-sandbox/internal/repositories"
+	"github.com/nathanaday/iot-data-sandbox/internal/schemas"
+)
 
-// SaveDataSource inserts or updates a DataSource
-func (s *Store) SaveDataSource(ds *schemas.DataSourceSchema) error {
+// Ensure Store implements the DataSourceRepository interface
+var _ repositories.DataSourceRepository = (*Store)(nil)
+
+// Save inserts or updates a DataSource
+func (s *Store) Save(ds *schemas.DataSourceSchema) error {
 	if ds.DataSourceId == 0 {
 		result, err := s.db.Exec(`
             INSERT INTO data_sources (name, data_source_type, data_source_path, row_count, start_time, end_time, time_label, value_label, when_created)
@@ -26,8 +32,8 @@ func (s *Store) SaveDataSource(ds *schemas.DataSourceSchema) error {
 	return nil
 }
 
-// LoadDataSource retrieves a DataSource by ID
-func (s *Store) LoadDataSource(id int64) (*schemas.DataSourceSchema, error) {
+// FindByID retrieves a DataSource by ID
+func (s *Store) FindByID(id int64) (*schemas.DataSourceSchema, error) {
 	ds := &schemas.DataSourceSchema{}
 	err := s.db.QueryRow(`
         SELECT data_source_id, name, data_source_type, data_source_path, row_count, start_time, end_time, time_label, value_label, when_created
@@ -40,8 +46,8 @@ func (s *Store) LoadDataSource(id int64) (*schemas.DataSourceSchema, error) {
 	return ds, nil
 }
 
-// LoadAllDataSources retrieves all DataSources ordered by creation date
-func (s *Store) LoadAllDataSources() ([]*schemas.DataSourceSchema, error) {
+// FindAll retrieves all DataSources ordered by creation date
+func (s *Store) FindAll() ([]*schemas.DataSourceSchema, error) {
 	rows, err := s.db.Query(`
         SELECT data_source_id, name, data_source_type, data_source_path, row_count, start_time, end_time, time_label, value_label, when_created
         FROM data_sources ORDER BY when_created DESC`)
@@ -62,8 +68,8 @@ func (s *Store) LoadAllDataSources() ([]*schemas.DataSourceSchema, error) {
 	return sources, rows.Err()
 }
 
-// DeleteDataSource removes a DataSource by ID
-func (s *Store) DeleteDataSource(id int64) error {
+// Delete removes a DataSource by ID
+func (s *Store) Delete(id int64) error {
 	_, err := s.db.Exec("DELETE FROM data_sources WHERE data_source_id=?", id)
 	return err
 }
