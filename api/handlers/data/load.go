@@ -5,11 +5,9 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/nathanaday/iot-data-sandbox/internal/models"
 	"github.com/nathanaday/iot-data-sandbox/internal/storage"
-	"github.com/nathanaday/iot-data-sandbox/internal/timeseries"
 )
 
 // UploadCSV godoc
@@ -53,44 +51,24 @@ func (h *DataSourceHandler) UploadCSV(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	filePath := h.fileStore.GetFilePath(savedFilename)
-
-	tsData, err := timeseries.LoadAndValidateCSV(filePath)
+	// Use the new FromCSV constructor to create datasource with in-memory data
+	// It handles CSV validation and loading automatically
+	// Pass savedFilename (not full path) - FromCSV will get the full path internally
+	dataSource, err := models.FromCSV(name, savedFilename, h.store, h.fileStore)
 	if err != nil {
 		h.fileStore.DeleteFile(savedFilename)
-		respondError(w, fmt.Sprintf("Invalid CSV: %v", err), http.StatusBadRequest)
+		respondError(w, fmt.Sprintf("Failed to create datasource: %v", err), http.StatusBadRequest)
 		return
 	}
 
-	dataSource := &models.DataSource{
-		Name:           name,
-		DataSourceType: 0,
-		DataSourcePath: savedFilename,
-		RowCount:       tsData.RowCount,
-		TimeLabel:      tsData.TimeLabel,
-		ValueLabel:     tsData.ValueLabel,
-		WhenCreated:    time.Now(),
-	}
-
-	if tsData.RowCount > 0 {
-		dataSource.StartTime = &tsData.StartTime
-		dataSource.EndTime = &tsData.EndTime
-	}
-
-	schema := dataSource.ToSchema()
-	if err := h.store.SaveDataSource(schema); err != nil {
-		h.fileStore.DeleteFile(savedFilename)
-		respondError(w, fmt.Sprintf("Failed to save datasource: %v", err), http.StatusInternalServerError)
-		return
-	}
-	dataSource.DataSourceId = schema.DataSourceId
+	startTime, endTime := dataSource.GetTimeRange()
 
 	response := UploadResponse{
 		DataSourceId: dataSource.DataSourceId,
 		Name:         dataSource.Name,
-		RowCount:     dataSource.RowCount,
-		StartTime:    dataSource.StartTime,
-		EndTime:      dataSource.EndTime,
+		RowCount:     dataSource.GetRowCount(),
+		StartTime:    startTime,
+		EndTime:      endTime,
 		TimeLabel:    dataSource.TimeLabel,
 		ValueLabel:   dataSource.ValueLabel,
 		WhenCreated:  dataSource.WhenCreated,

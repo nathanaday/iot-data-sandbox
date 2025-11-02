@@ -1,14 +1,12 @@
 package data
 
 import (
-	"fmt"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/nathanaday/iot-data-sandbox/internal/models"
-	"github.com/nathanaday/iot-data-sandbox/internal/timeseries"
 )
 
 // QueryData godoc
@@ -31,27 +29,14 @@ func (h *DataSourceHandler) QueryData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	schema, err := h.store.LoadDataSource(id)
+	// Load datasource with data
+	ds, err := models.LoadFromStorage(id, h.store, h.fileStore)
 	if err != nil {
 		respondError(w, "Datasource not found", http.StatusNotFound)
 		return
 	}
 
-	ds := &models.DataSource{}
-	ds.FromSchema(schema)
-
-	filePath := h.fileStore.GetFilePath(ds.DataSourcePath)
-	if !h.fileStore.FileExists(ds.DataSourcePath) {
-		respondError(w, "Data file not found", http.StatusNotFound)
-		return
-	}
-
-	tsData, err := timeseries.LoadAndValidateCSV(filePath)
-	if err != nil {
-		respondError(w, fmt.Sprintf("Failed to load data: %v", err), http.StatusInternalServerError)
-		return
-	}
-
+	// Parse time range filters
 	var startTime, endTime *time.Time
 	if startStr := r.URL.Query().Get("start_time"); startStr != "" {
 		t, err := time.Parse(time.RFC3339, startStr)
@@ -71,32 +56,28 @@ func (h *DataSourceHandler) QueryData(w http.ResponseWriter, r *http.Request) {
 		endTime = &t
 	}
 
-	filteredData, err := timeseries.FilterByTimeRange(tsData, startTime, endTime)
-	if err != nil {
-		respondError(w, fmt.Sprintf("Failed to filter data: %v", err), http.StatusInternalServerError)
-		return
-	}
+	// Filter data based on time range
+	dataPoints := make([]DataPoint, 0, len(ds.Data))
+	var actualStart, actualEnd time.Time
 
-	dataPoints := make([]DataPoint, 0, filteredData.RowCount)
-
-	timestampRecords := filteredData.DataFrame.Col("timestamp").Records()
-	valueRecords := filteredData.DataFrame.Col("value").Records()
-
-	for i := 1; i < len(timestampRecords); i++ {
-		ts, err := time.Parse(time.RFC3339, timestampRecords[i])
-		if err != nil {
+	for _, entry := range ds.Data {
+		// Apply time range filter
+		if startTime != nil && entry.Timestamp.Before(*startTime) {
 			continue
 		}
-
-		val, err := strconv.ParseFloat(valueRecords[i], 64)
-		if err != nil {
+		if endTime != nil && entry.Timestamp.After(*endTime) {
 			continue
 		}
 
 		dataPoints = append(dataPoints, DataPoint{
-			Timestamp: ts,
-			Value:     val,
+			Timestamp: entry.Timestamp,
+			Value:     entry.Value,
 		})
+
+		if len(dataPoints) == 1 {
+			actualStart = entry.Timestamp
+		}
+		actualEnd = entry.Timestamp
 	}
 
 	response := DataQueryResponse{
@@ -105,8 +86,8 @@ func (h *DataSourceHandler) QueryData(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(dataPoints) > 0 {
-		response.StartTime = filteredData.StartTime
-		response.EndTime = filteredData.EndTime
+		response.StartTime = actualStart
+		response.EndTime = actualEnd
 	}
 
 	respondJSON(w, response, http.StatusOK)

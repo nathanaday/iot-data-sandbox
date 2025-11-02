@@ -6,9 +6,9 @@ import "github.com/nathanaday/iot-data-sandbox/internal/schemas"
 func (s *Store) SaveDataSource(ds *schemas.DataSourceSchema) error {
 	if ds.DataSourceId == 0 {
 		result, err := s.db.Exec(`
-            INSERT INTO data_sources (project_id, name, data_source_type, data_source_path, row_count, start_time, end_time, time_label, value_label, when_created)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			ds.ProjectId, ds.Name, ds.DataSourceType, ds.DataSourcePath, ds.RowCount, ds.StartTime, ds.EndTime, ds.TimeLabel, ds.ValueLabel, ds.WhenCreated,
+            INSERT INTO data_sources (name, data_source_type, data_source_path, row_count, start_time, end_time, time_label, value_label, when_created)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			ds.Name, ds.DataSourceType, ds.DataSourcePath, ds.RowCount, ds.StartTime, ds.EndTime, ds.TimeLabel, ds.ValueLabel, ds.WhenCreated,
 		)
 		if err != nil {
 			return err
@@ -17,9 +17,9 @@ func (s *Store) SaveDataSource(ds *schemas.DataSourceSchema) error {
 	} else {
 		_, err := s.db.Exec(`
             UPDATE data_sources
-            SET project_id=?, name=?, data_source_type=?, data_source_path=?, row_count=?, start_time=?, end_time=?, time_label=?, value_label=?, when_created=?
+            SET name=?, data_source_type=?, data_source_path=?, row_count=?, start_time=?, end_time=?, time_label=?, value_label=?, when_created=?
             WHERE data_source_id=?`,
-			ds.ProjectId, ds.Name, ds.DataSourceType, ds.DataSourcePath, ds.RowCount, ds.StartTime, ds.EndTime, ds.TimeLabel, ds.ValueLabel, ds.WhenCreated, ds.DataSourceId,
+			ds.Name, ds.DataSourceType, ds.DataSourcePath, ds.RowCount, ds.StartTime, ds.EndTime, ds.TimeLabel, ds.ValueLabel, ds.WhenCreated, ds.DataSourceId,
 		)
 		return err
 	}
@@ -30,9 +30,9 @@ func (s *Store) SaveDataSource(ds *schemas.DataSourceSchema) error {
 func (s *Store) LoadDataSource(id int64) (*schemas.DataSourceSchema, error) {
 	ds := &schemas.DataSourceSchema{}
 	err := s.db.QueryRow(`
-        SELECT data_source_id, project_id, name, data_source_type, data_source_path, row_count, start_time, end_time, time_label, value_label, when_created
+        SELECT data_source_id, name, data_source_type, data_source_path, row_count, start_time, end_time, time_label, value_label, when_created
         FROM data_sources WHERE data_source_id=?`, id,
-	).Scan(&ds.DataSourceId, &ds.ProjectId, &ds.Name, &ds.DataSourceType, &ds.DataSourcePath, &ds.RowCount, &ds.StartTime, &ds.EndTime, &ds.TimeLabel, &ds.ValueLabel, &ds.WhenCreated)
+	).Scan(&ds.DataSourceId, &ds.Name, &ds.DataSourceType, &ds.DataSourcePath, &ds.RowCount, &ds.StartTime, &ds.EndTime, &ds.TimeLabel, &ds.ValueLabel, &ds.WhenCreated)
 
 	if err != nil {
 		return nil, err
@@ -43,7 +43,7 @@ func (s *Store) LoadDataSource(id int64) (*schemas.DataSourceSchema, error) {
 // LoadAllDataSources retrieves all DataSources ordered by creation date
 func (s *Store) LoadAllDataSources() ([]*schemas.DataSourceSchema, error) {
 	rows, err := s.db.Query(`
-        SELECT data_source_id, project_id, name, data_source_type, data_source_path, row_count, start_time, end_time, time_label, value_label, when_created
+        SELECT data_source_id, name, data_source_type, data_source_path, row_count, start_time, end_time, time_label, value_label, when_created
         FROM data_sources ORDER BY when_created DESC`)
 	if err != nil {
 		return nil, err
@@ -53,29 +53,7 @@ func (s *Store) LoadAllDataSources() ([]*schemas.DataSourceSchema, error) {
 	var sources []*schemas.DataSourceSchema
 	for rows.Next() {
 		ds := &schemas.DataSourceSchema{}
-		if err := rows.Scan(&ds.DataSourceId, &ds.ProjectId, &ds.Name, &ds.DataSourceType,
-			&ds.DataSourcePath, &ds.RowCount, &ds.StartTime, &ds.EndTime, &ds.TimeLabel, &ds.ValueLabel, &ds.WhenCreated); err != nil {
-			return nil, err
-		}
-		sources = append(sources, ds)
-	}
-	return sources, rows.Err()
-}
-
-// LoadDataSourcesByProjectId retrieves all DataSources for a specific project ordered by creation date
-func (s *Store) LoadDataSourcesByProjectId(projectId int64) ([]*schemas.DataSourceSchema, error) {
-	rows, err := s.db.Query(`
-        SELECT data_source_id, project_id, name, data_source_type, data_source_path, row_count, start_time, end_time, time_label, value_label, when_created
-        FROM data_sources WHERE project_id=? ORDER BY when_created DESC`, projectId)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var sources []*schemas.DataSourceSchema
-	for rows.Next() {
-		ds := &schemas.DataSourceSchema{}
-		if err := rows.Scan(&ds.DataSourceId, &ds.ProjectId, &ds.Name, &ds.DataSourceType,
+		if err := rows.Scan(&ds.DataSourceId, &ds.Name, &ds.DataSourceType,
 			&ds.DataSourcePath, &ds.RowCount, &ds.StartTime, &ds.EndTime, &ds.TimeLabel, &ds.ValueLabel, &ds.WhenCreated); err != nil {
 			return nil, err
 		}

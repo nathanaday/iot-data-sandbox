@@ -29,17 +29,10 @@ swag init -g cmd/server/main.go
 go run cmd/server/main.go
 ```
 
-### Example Workflow - Basic Data Ingestion
+### Workflow Concept
 
-**List all datasources**
-```
-curl -X POST http://localhost:8080/api/datasources \
--F "file=@your_data.csv" \
--F "name=Your Dataset Name"
-```
+The entity hierarchy follows the pattern shown below:
+- `project` -> `datalayer` -> `datasource`
 
-**List all datasources**
-curl http://localhost:8080/api/datasources
 
-**Query data with time range**
-curl "http://localhost:8080/api/datasources/1/data?start_time=2024-01-01T00:00:00Z&end_time=2024-01-01T12:00:00Z"
+

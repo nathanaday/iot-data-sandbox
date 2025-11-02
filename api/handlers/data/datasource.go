@@ -40,18 +40,16 @@ func (h *DataSourceHandler) ListDataSources(w http.ResponseWriter, r *http.Reque
 
 	metadata := make([]DataSourceMetadata, 0, len(schemas))
 	for _, schema := range schemas {
-		ds := &models.DataSource{}
-		ds.FromSchema(schema)
 		metadata = append(metadata, DataSourceMetadata{
-			DataSourceId: ds.DataSourceId,
-			Name:         ds.Name,
-			Type:         models.DataSourceTypes[ds.DataSourceType],
-			RowCount:     ds.RowCount,
-			StartTime:    ds.StartTime,
-			EndTime:      ds.EndTime,
-			TimeLabel:    ds.TimeLabel,
-			ValueLabel:   ds.ValueLabel,
-			WhenCreated:  ds.WhenCreated,
+			DataSourceId: schema.DataSourceId,
+			Name:         schema.Name,
+			Type:         models.DataSourceTypes[schema.DataSourceType],
+			RowCount:     schema.RowCount,
+			StartTime:    schema.StartTime,
+			EndTime:      schema.EndTime,
+			TimeLabel:    schema.TimeLabel,
+			ValueLabel:   schema.ValueLabel,
+			WhenCreated:  schema.WhenCreated,
 		})
 	}
 
@@ -81,19 +79,16 @@ func (h *DataSourceHandler) GetDataSource(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	ds := &models.DataSource{}
-	ds.FromSchema(schema)
-
 	metadata := DataSourceMetadata{
-		DataSourceId: ds.DataSourceId,
-		Name:         ds.Name,
-		Type:         models.DataSourceTypes[ds.DataSourceType],
-		RowCount:     ds.RowCount,
-		StartTime:    ds.StartTime,
-		EndTime:      ds.EndTime,
-		TimeLabel:    ds.TimeLabel,
-		ValueLabel:   ds.ValueLabel,
-		WhenCreated:  ds.WhenCreated,
+		DataSourceId: schema.DataSourceId,
+		Name:         schema.Name,
+		Type:         models.DataSourceTypes[schema.DataSourceType],
+		RowCount:     schema.RowCount,
+		StartTime:    schema.StartTime,
+		EndTime:      schema.EndTime,
+		TimeLabel:    schema.TimeLabel,
+		ValueLabel:   schema.ValueLabel,
+		WhenCreated:  schema.WhenCreated,
 	}
 
 	respondJSON(w, metadata, http.StatusOK)
@@ -122,10 +117,7 @@ func (h *DataSourceHandler) DeleteDataSource(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	ds := &models.DataSource{}
-	ds.FromSchema(schema)
-
-	if err := h.fileStore.DeleteFile(ds.DataSourcePath); err != nil {
+	if err := h.fileStore.DeleteFile(schema.DataSourcePath); err != nil {
 		respondError(w, fmt.Sprintf("Failed to delete file: %v", err), http.StatusInternalServerError)
 		return
 	}

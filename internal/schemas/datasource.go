@@ -4,7 +4,6 @@ import "time"
 
 type DataSourceSchema struct {
 	DataSourceId   int64
-	ProjectId      int64
 	Name           string
 	DataSourceType int
 	DataSourcePath string
