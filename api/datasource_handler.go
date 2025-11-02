@@ -136,11 +136,13 @@ func (h *DataSourceHandler) UploadCSV(w http.ResponseWriter, r *http.Request) {
 		dataSource.EndTime = &tsData.EndTime
 	}
 
-	if err := h.store.SaveDataSource(dataSource); err != nil {
+	schema := dataSource.ToSchema()
+	if err := h.store.SaveDataSource(schema); err != nil {
 		h.fileStore.DeleteFile(savedFilename)
 		respondError(w, fmt.Sprintf("Failed to save datasource: %v", err), http.StatusInternalServerError)
 		return
 	}
+	dataSource.DataSourceId = schema.DataSourceId
 
 	response := UploadResponse{
 		DataSourceId: dataSource.DataSourceId,
@@ -165,14 +167,16 @@ func (h *DataSourceHandler) UploadCSV(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} ErrorResponse
 // @Router /api/datasources [get]
 func (h *DataSourceHandler) ListDataSources(w http.ResponseWriter, r *http.Request) {
-	sources, err := h.store.LoadAllDataSources()
+	schemas, err := h.store.LoadAllDataSources()
 	if err != nil {
 		respondError(w, fmt.Sprintf("Failed to load datasources: %v", err), http.StatusInternalServerError)
 		return
 	}
 
-	metadata := make([]DataSourceMetadata, 0, len(sources))
-	for _, ds := range sources {
+	metadata := make([]DataSourceMetadata, 0, len(schemas))
+	for _, schema := range schemas {
+		ds := &models.DataSource{}
+		ds.FromSchema(schema)
 		metadata = append(metadata, DataSourceMetadata{
 			DataSourceId: ds.DataSourceId,
 			Name:         ds.Name,
@@ -206,11 +210,14 @@ func (h *DataSourceHandler) GetDataSource(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	ds, err := h.store.LoadDataSource(id)
+	schema, err := h.store.LoadDataSource(id)
 	if err != nil {
 		respondError(w, "Datasource not found", http.StatusNotFound)
 		return
 	}
+
+	ds := &models.DataSource{}
+	ds.FromSchema(schema)
 
 	metadata := DataSourceMetadata{
 		DataSourceId: ds.DataSourceId,
@@ -247,11 +254,14 @@ func (h *DataSourceHandler) QueryData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ds, err := h.store.LoadDataSource(id)
+	schema, err := h.store.LoadDataSource(id)
 	if err != nil {
 		respondError(w, "Datasource not found", http.StatusNotFound)
 		return
 	}
+
+	ds := &models.DataSource{}
+	ds.FromSchema(schema)
 
 	filePath := h.fileStore.GetFilePath(ds.DataSourcePath)
 	if !h.fileStore.FileExists(ds.DataSourcePath) {
@@ -342,11 +352,14 @@ func (h *DataSourceHandler) DeleteDataSource(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	ds, err := h.store.LoadDataSource(id)
+	schema, err := h.store.LoadDataSource(id)
 	if err != nil {
 		respondError(w, "Datasource not found", http.StatusNotFound)
 		return
 	}
+
+	ds := &models.DataSource{}
+	ds.FromSchema(schema)
 
 	if err := h.fileStore.DeleteFile(ds.DataSourcePath); err != nil {
 		respondError(w, fmt.Sprintf("Failed to delete file: %v", err), http.StatusInternalServerError)

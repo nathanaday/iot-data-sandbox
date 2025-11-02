@@ -1,9 +1,9 @@
 package persistence
 
-import "github.com/nathanaday/iot-data-sandbox/internal/models"
+import "github.com/nathanaday/iot-data-sandbox/internal/schemas"
 
 // SaveDataSource inserts or updates a DataSource
-func (s *Store) SaveDataSource(ds *models.DataSource) error {
+func (s *Store) SaveDataSource(ds *schemas.DataSourceSchema) error {
 	if ds.DataSourceId == 0 {
 		result, err := s.db.Exec(`
             INSERT INTO data_sources (name, data_source_type, data_source_path, row_count, start_time, end_time, time_label, value_label, when_created)
@@ -27,8 +27,8 @@ func (s *Store) SaveDataSource(ds *models.DataSource) error {
 }
 
 // LoadDataSource retrieves a DataSource by ID
-func (s *Store) LoadDataSource(id int64) (*models.DataSource, error) {
-	ds := &models.DataSource{}
+func (s *Store) LoadDataSource(id int64) (*schemas.DataSourceSchema, error) {
+	ds := &schemas.DataSourceSchema{}
 	err := s.db.QueryRow(`
         SELECT data_source_id, name, data_source_type, data_source_path, row_count, start_time, end_time, time_label, value_label, when_created
         FROM data_sources WHERE data_source_id=?`, id,
@@ -41,7 +41,7 @@ func (s *Store) LoadDataSource(id int64) (*models.DataSource, error) {
 }
 
 // LoadAllDataSources retrieves all DataSources ordered by creation date
-func (s *Store) LoadAllDataSources() ([]*models.DataSource, error) {
+func (s *Store) LoadAllDataSources() ([]*schemas.DataSourceSchema, error) {
 	rows, err := s.db.Query(`
         SELECT data_source_id, name, data_source_type, data_source_path, row_count, start_time, end_time, time_label, value_label, when_created
         FROM data_sources ORDER BY when_created DESC`)
@@ -50,9 +50,9 @@ func (s *Store) LoadAllDataSources() ([]*models.DataSource, error) {
 	}
 	defer rows.Close()
 
-	var sources []*models.DataSource
+	var sources []*schemas.DataSourceSchema
 	for rows.Next() {
-		ds := &models.DataSource{}
+		ds := &schemas.DataSourceSchema{}
 		if err := rows.Scan(&ds.DataSourceId, &ds.Name, &ds.DataSourceType,
 			&ds.DataSourcePath, &ds.RowCount, &ds.StartTime, &ds.EndTime, &ds.TimeLabel, &ds.ValueLabel, &ds.WhenCreated); err != nil {
 			return nil, err
