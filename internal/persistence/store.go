@@ -34,8 +34,15 @@ func NewStore(dbPath string) (*Store, error) {
 
 func createTables(db *sql.DB) error {
 	schema := `
+    CREATE TABLE IF NOT EXISTS projects (
+        project_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        when_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS data_sources (
         data_source_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id INTEGER,
         name TEXT NOT NULL,
         data_source_type INTEGER NOT NULL,
         data_source_path TEXT NOT NULL,
@@ -44,7 +51,17 @@ func createTables(db *sql.DB) error {
         end_time TIMESTAMP,
         time_label TEXT NOT NULL DEFAULT 'time',
         value_label TEXT NOT NULL DEFAULT 'value',
-        when_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        when_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE SET NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS data_layers (
+        data_layer_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id INTEGER,
+        data_source_id INTEGER,
+        name TEXT NOT NULL,
+        FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE CASCADE,
+        FOREIGN KEY (data_source_id) REFERENCES data_sources(data_source_id) ON DELETE CASCADE
     );
 
     CREATE TABLE IF NOT EXISTS tools (
@@ -70,6 +87,8 @@ func createTables(db *sql.DB) error {
 
     CREATE INDEX IF NOT EXISTS idx_tools_enabled ON tools(is_enabled);
     CREATE INDEX IF NOT EXISTS idx_data_sources_type ON data_sources(data_source_type);
+    CREATE INDEX IF NOT EXISTS idx_data_sources_project ON data_sources(project_id);
+    CREATE INDEX IF NOT EXISTS idx_data_layers_project ON data_layers(project_id);
     `
 
 	_, err := db.Exec(schema)

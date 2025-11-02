@@ -7,17 +7,17 @@ import (
 )
 
 type DataSource struct {
-	DataSourceId     int64
-	Project          *Project
-	Name             string
-	DataSourceType   int
-	DataSourcePath   string
-	RowCount         int
-	StartTime        *time.Time
-	EndTime          *time.Time
-	TimeLabel        string
-	ValueLabel       string
-	WhenCreated      time.Time
+	DataSourceId   int64
+	Project        *Project
+	Name           string
+	DataSourceType int
+	DataSourcePath string
+	RowCount       int
+	StartTime      *time.Time
+	EndTime        *time.Time
+	TimeLabel      string
+	ValueLabel     string
+	WhenCreated    time.Time
 }
 
 func (ds *DataSource) ToSchema() *schemas.DataSourceSchema {
@@ -52,8 +52,11 @@ func (ds *DataSource) FromSchema(schema *schemas.DataSourceSchema) {
 	ds.TimeLabel = schema.TimeLabel
 	ds.ValueLabel = schema.ValueLabel
 	ds.WhenCreated = schema.WhenCreated
-	// Note: Project object is not populated here, must be set separately if needed
-	ds.Project = nil
+	ds.Project = nil // use SetProject
+}
+
+func (ds *DataSource) SetProject(project *Project) {
+	ds.Project = project
 }
 
 var DataSourceTypes = map[int]string{

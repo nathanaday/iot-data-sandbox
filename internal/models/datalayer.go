@@ -29,7 +29,14 @@ func (dl *DataLayer) ToSchema() *schemas.DataLayerSchema {
 func (dl *DataLayer) FromSchema(schema *schemas.DataLayerSchema) {
 	dl.DataLayerId = schema.DataLayerId
 	dl.Name = schema.Name
-	// Note: Project and DataSource objects are not populated here, must be set separately if needed
-	dl.Project = nil
-	dl.DataSource = nil
+	dl.Project = nil    // use SetProject
+	dl.DataSource = nil // use SetDataSource
+}
+
+func (dl *DataLayer) SetProject(project *Project) {
+	dl.Project = project
+}
+
+func (dl *DataLayer) SetDataSource(dataSource *DataSource) {
+	dl.DataSource = dataSource
 }

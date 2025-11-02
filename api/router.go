@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/nathanaday/iot-data-sandbox/api/handlers/data"
 	"github.com/nathanaday/iot-data-sandbox/internal/persistence"
 	"github.com/nathanaday/iot-data-sandbox/internal/storage"
 	httpSwagger "github.com/swaggo/http-swagger"
@@ -31,7 +32,7 @@ func SetupRouter(store *persistence.Store, fileStore *storage.FileStore) *chi.Mu
 	r.Use(middleware.RequestID)
 	r.Use(corsMiddleware)
 
-	dataSourceHandler := NewDataSourceHandler(store, fileStore)
+	dataSourceHandler := data.NewDataSourceHandler(store, fileStore)
 	r.Route("/api/datasources", func(r chi.Router) {
 		r.Post("/", dataSourceHandler.UploadCSV)
 		r.Get("/", dataSourceHandler.ListDataSources)
