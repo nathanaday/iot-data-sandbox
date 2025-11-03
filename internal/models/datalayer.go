@@ -1,42 +1,50 @@
 package models
 
-import "github.com/nathanaday/iot-data-sandbox/internal/schemas"
+import "time"
 
 type DataLayer struct {
 	DataLayerId int64
+	ProjectId   int64
+	DataSourceId int64
 	Name        string
-	Project     *Project
-	DataSource  *DataSource
+
+	// UI/UX properties
+	Color            string
+	ZIndex           int
+	IsVisible        bool
+	DisplayStartTime *time.Time
+	DisplayEndTime   *time.Time
+
+	// In-memory relationships (not persisted)
+	Project    *Project
+	DataSource *DataSource
 }
 
-func (dl *DataLayer) ToSchema() *schemas.DataLayerSchema {
-	s := &schemas.DataLayerSchema{
-		DataLayerId: dl.DataLayerId,
-		Name:        dl.Name,
+// GetData returns the time series data points from the underlying DataSource
+func (dl *DataLayer) GetData() []DataEntry {
+	if dl.DataSource == nil {
+		return []DataEntry{}
 	}
+	return dl.DataSource.Data
+}
 
-	if dl.Project != nil {
-		s.ProjectId = dl.Project.ProjectId
+// GetTimeRange returns the actual time range of the underlying data
+func (dl *DataLayer) GetTimeRange() (start *time.Time, end *time.Time) {
+	if dl.DataSource == nil {
+		return nil, nil
 	}
+	return dl.DataSource.GetTimeRange()
+}
 
-	if dl.DataSource != nil {
-		s.DataSourceId = dl.DataSource.DataSourceId
+// GetDisplayTimeRange returns the display window (defaults to actual time range if not set)
+func (dl *DataLayer) GetDisplayTimeRange() (start *time.Time, end *time.Time) {
+	if dl.DisplayStartTime != nil && dl.DisplayEndTime != nil {
+		return dl.DisplayStartTime, dl.DisplayEndTime
 	}
-
-	return s
+	return dl.GetTimeRange()
 }
 
-func (dl *DataLayer) FromSchema(schema *schemas.DataLayerSchema) {
-	dl.DataLayerId = schema.DataLayerId
-	dl.Name = schema.Name
-	dl.Project = nil    // use SetProject
-	dl.DataSource = nil // use SetDataSource
-}
-
-func (dl *DataLayer) SetProject(project *Project) {
-	dl.Project = project
-}
-
-func (dl *DataLayer) SetDataSource(dataSource *DataSource) {
-	dl.DataSource = dataSource
+// IsHidden returns true if the layer is hidden in the UI
+func (dl *DataLayer) IsHidden() bool {
+	return !dl.IsVisible
 }

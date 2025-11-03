@@ -55,7 +55,7 @@ layer1.LoadFromCSV("path_to_csv.csv") // Loads csv data into the layer via 'Data
 layer1.setColor("#454545")  // supports color HEX only for simplicity
 layer1.rename("layer-1")
 
-Datapoints[] dp = layer.getData()  // returns list of (timestamp, value) tuples corresponding to data
+Datapoints[] dp = layer.getData()  // returns list of (timestamp, value) tuples corresponding to data (UI will use this to display data)
 
 
 // Working with the time window

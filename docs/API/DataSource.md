@@ -1,35 +1,58 @@
-# DataSource Model API
+# DataSource API
 
-  ## Constructor Functions
+## Service: `DataSourceService`
 
-  - **`FromCSV(name, csvFilename, store, fileStore)`** - Creates a new DataSource from a CSV file. Automatically validates CSV, loads data into memory, and creates SQLite
-  metadata record.
+### Methods
 
-  - **`LoadFromStorage(id, store, fileStore)`** - Loads an existing DataSource by ID. Retrieves metadata from SQLite and loads CSV data into memory.
+- **`CreateFromCSV(name, csvFilename)`** - Creates a new DataSource from a CSV file. Automatically validates CSV, loads data into memory, and saves metadata to SQLite. Returns the created DataSource.
 
-  ## Instance Methods
+- **`LoadByID(id)`** - Loads an existing DataSource by ID. Retrieves metadata from SQLite and loads CSV data into memory. Returns the DataSource with in-memory data.
 
-  - **`Save()`** - Persists both metadata (to SQLite) and data (to CSV file). Use after making mutations to the dataset.
+- **`Save(dataSource)`** - Persists both metadata (to SQLite) and data (to CSV file). Use after making mutations to the dataset.
 
-  - **`ToSchema()`** - Converts DataSource to schema format for SQLite persistence. Automatically calculates row count and time range from in-memory data.
+## Model: `DataSource`
 
-  - **`FromSchema(schema)`** - Populates DataSource metadata from a schema. Note: Only loads metadata, not actual data.
+### Fields
 
-  - **`GetRowCount()`** - Returns the current number of data entries in memory.
+- **`DataSourceId int64`** - Unique identifier
+- **`Name string`** - Human-readable name
+- **`DataSourceType int`** - Type of data source (0 = CSV)
+- **`DataSourcePath string`** - CSV filename (not full path)
+- **`TimeLabel string`** - Column name for timestamps (e.g., "time")
+- **`ValueLabel string`** - Column name for values (e.g., "value")
+- **`WhenCreated time.Time`** - Creation timestamp
+- **`Data []DataEntry`** - In-memory slice of time series data points
 
-  - **`GetTimeRange()`** - Returns the start and end timestamps of the dataset (or nil if empty).
+### Methods
 
-  ## Fields
+- **`GetRowCount()`** - Returns the current number of data entries
+- **`GetTimeRange()`** - Returns start and end timestamps (or nil if empty)
+- **`ToSchema()`** - Converts to schema for persistence (internal use)
+- **`FromSchema(schema)`** - Populates from schema (internal use)
 
-  - **`Data []DataEntry`** - In-memory slice of time series data points
-  - **`DataSourceId`** - Unique identifier
-  - **`Name`** - Human-readable name
-  - **`DataSourcePath`** - CSV filename (not full path)
-  - **`TimeLabel`** - Column name for timestamps
-  - **`ValueLabel`** - Column name for values
-  - **`WhenCreated`** - Creation timestamp
+## DataEntry Struct
 
-  ## DataEntry Struct
+- **`Timestamp time.Time`** - Data point timestamp
+- **`Value float64`** - Data point numeric value
 
-  - **`Timestamp time.Time`** - Data point timestamp
-  - **`Value float64`** - Data point value
+## Example Usage
+
+```go
+// Create service
+dsService := services.NewDataSourceService(store, fileStore)
+
+// Create datasource from CSV
+ds, err := dsService.CreateFromCSV("My Data", "data_123.csv")
+
+// Load existing datasource with data
+ds, err := dsService.LoadByID(1)
+
+// Access data
+for _, entry := range ds.Data {
+    fmt.Printf("%v: %f\n", entry.Timestamp, entry.Value)
+}
+
+// Get metadata
+count := ds.GetRowCount()
+start, end := ds.GetTimeRange()
+```

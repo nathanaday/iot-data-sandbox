@@ -60,6 +60,11 @@ func createTables(db *sql.DB) error {
         project_id INTEGER,
         data_source_id INTEGER,
         name TEXT NOT NULL,
+        color TEXT NOT NULL DEFAULT '#3b82f6',
+        z_index INTEGER NOT NULL DEFAULT 0,
+        is_visible BOOLEAN NOT NULL DEFAULT 1,
+        display_start_time TIMESTAMP,
+        display_end_time TIMESTAMP,
         FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE CASCADE,
         FOREIGN KEY (data_source_id) REFERENCES data_sources(data_source_id) ON DELETE CASCADE
     );
@@ -89,6 +94,7 @@ func createTables(db *sql.DB) error {
     CREATE INDEX IF NOT EXISTS idx_data_sources_type ON data_sources(data_source_type);
     CREATE INDEX IF NOT EXISTS idx_data_sources_project ON data_sources(project_id);
     CREATE INDEX IF NOT EXISTS idx_data_layers_project ON data_layers(project_id);
+    CREATE INDEX IF NOT EXISTS idx_data_layers_z_index ON data_layers(project_id, z_index);
     `
 
 	_, err := db.Exec(schema)
