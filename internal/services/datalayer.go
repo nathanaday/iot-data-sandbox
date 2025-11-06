@@ -83,7 +83,7 @@ func (s *DataLayerService) LoadFromCSV(layerId int64, csvFilename string) error 
 	}
 
 	// Associate datasource with layer
-	layer.DataSourceId = dataSource.DataSourceId
+	layer.DataSourceId = &dataSource.DataSourceId
 	if err := s.store.SaveLayer(layer); err != nil {
 		return fmt.Errorf("failed to associate datasource with layer: %w", err)
 	}

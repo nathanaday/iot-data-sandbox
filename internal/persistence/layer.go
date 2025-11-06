@@ -1,6 +1,8 @@
 package persistence
 
 import (
+	"database/sql"
+
 	"github.com/nathanaday/iot-data-sandbox/internal/models"
 	"github.com/nathanaday/iot-data-sandbox/internal/schemas"
 )
@@ -32,14 +34,20 @@ func (s *Store) SaveLayer(layer *models.DataLayer) error {
 // LoadLayer retrieves a DataLayer by ID
 func (s *Store) LoadLayer(id int64) (*models.DataLayer, error) {
 	layer := &models.DataLayer{}
+	var dataSourceId sql.NullInt64
 	err := s.db.QueryRow(`
         SELECT data_layer_id, project_id, data_source_id, name, color, z_index, is_visible, display_start_time, display_end_time
         FROM data_layers WHERE data_layer_id=?`, id,
-	).Scan(&layer.DataLayerId, &layer.ProjectId, &layer.DataSourceId, &layer.Name, &layer.Color, &layer.ZIndex, &layer.IsVisible, &layer.DisplayStartTime, &layer.DisplayEndTime)
+	).Scan(&layer.DataLayerId, &layer.ProjectId, &dataSourceId, &layer.Name, &layer.Color, &layer.ZIndex, &layer.IsVisible, &layer.DisplayStartTime, &layer.DisplayEndTime)
 
 	if err != nil {
 		return nil, err
 	}
+
+	if dataSourceId.Valid {
+		layer.DataSourceId = &dataSourceId.Int64
+	}
+
 	return layer, nil
 }
 
@@ -56,8 +64,12 @@ func (s *Store) LoadAllLayers() ([]*models.DataLayer, error) {
 	var layers []*models.DataLayer
 	for rows.Next() {
 		layer := &models.DataLayer{}
-		if err := rows.Scan(&layer.DataLayerId, &layer.ProjectId, &layer.DataSourceId, &layer.Name, &layer.Color, &layer.ZIndex, &layer.IsVisible, &layer.DisplayStartTime, &layer.DisplayEndTime); err != nil {
+		var dataSourceId sql.NullInt64
+		if err := rows.Scan(&layer.DataLayerId, &layer.ProjectId, &dataSourceId, &layer.Name, &layer.Color, &layer.ZIndex, &layer.IsVisible, &layer.DisplayStartTime, &layer.DisplayEndTime); err != nil {
 			return nil, err
+		}
+		if dataSourceId.Valid {
+			layer.DataSourceId = &dataSourceId.Int64
 		}
 		layers = append(layers, layer)
 	}
@@ -77,8 +89,12 @@ func (s *Store) LoadLayersByProjectId(projectId int64) ([]*models.DataLayer, err
 	var layers []*models.DataLayer
 	for rows.Next() {
 		layer := &models.DataLayer{}
-		if err := rows.Scan(&layer.DataLayerId, &layer.ProjectId, &layer.DataSourceId, &layer.Name, &layer.Color, &layer.ZIndex, &layer.IsVisible, &layer.DisplayStartTime, &layer.DisplayEndTime); err != nil {
+		var dataSourceId sql.NullInt64
+		if err := rows.Scan(&layer.DataLayerId, &layer.ProjectId, &dataSourceId, &layer.Name, &layer.Color, &layer.ZIndex, &layer.IsVisible, &layer.DisplayStartTime, &layer.DisplayEndTime); err != nil {
 			return nil, err
+		}
+		if dataSourceId.Valid {
+			layer.DataSourceId = &dataSourceId.Int64
 		}
 		layers = append(layers, layer)
 	}
@@ -98,8 +114,12 @@ func (s *Store) LoadLayersByDataSourceId(dataSourceId int64) ([]*models.DataLaye
 	var layers []*models.DataLayer
 	for rows.Next() {
 		layer := &models.DataLayer{}
-		if err := rows.Scan(&layer.DataLayerId, &layer.ProjectId, &layer.DataSourceId, &layer.Name, &layer.Color, &layer.ZIndex, &layer.IsVisible, &layer.DisplayStartTime, &layer.DisplayEndTime); err != nil {
+		var dataSourceIdVal sql.NullInt64
+		if err := rows.Scan(&layer.DataLayerId, &layer.ProjectId, &dataSourceIdVal, &layer.Name, &layer.Color, &layer.ZIndex, &layer.IsVisible, &layer.DisplayStartTime, &layer.DisplayEndTime); err != nil {
 			return nil, err
+		}
+		if dataSourceIdVal.Valid {
+			layer.DataSourceId = &dataSourceIdVal.Int64
 		}
 		layers = append(layers, layer)
 	}
@@ -114,7 +134,12 @@ func (s *Store) LoadLayerWithDataSource(layerId int64) (*models.DataLayer, *sche
 		return nil, nil, err
 	}
 
-	dataSource, err := s.FindByID(layer.DataSourceId)
+	// If layer has no data source, return layer only
+	if layer.DataSourceId == nil {
+		return layer, nil, nil
+	}
+
+	dataSource, err := s.FindByID(*layer.DataSourceId)
 	if err != nil {
 		return layer, nil, err
 	}
@@ -138,7 +163,12 @@ func (s *Store) LoadLayerWithProjectAndDataSource(layerId int64) (*models.DataLa
 		}
 	}
 
-	dataSource, err := s.FindByID(layer.DataSourceId)
+	// If layer has no data source, return layer and project only
+	if layer.DataSourceId == nil {
+		return layer, project, nil, nil
+	}
+
+	dataSource, err := s.FindByID(*layer.DataSourceId)
 	if err != nil {
 		return layer, project, nil, err
 	}

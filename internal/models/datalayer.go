@@ -3,10 +3,10 @@ package models
 import "time"
 
 type DataLayer struct {
-	DataLayerId int64
-	ProjectId   int64
-	DataSourceId int64
-	Name        string
+	DataLayerId  int64
+	ProjectId    int64
+	DataSourceId *int64
+	Name         string
 
 	// UI/UX properties
 	Color            string

@@ -120,8 +120,9 @@ func loadDataFromCSV(ds *models.DataSource, filePath string) error {
 // This centralizes CSV parsing logic to avoid duplication
 func parseDataFrameToEntries(tsData *timeseries.TimeSeriesData) ([]models.DataEntry, error) {
 	data := make([]models.DataEntry, 0, tsData.RowCount)
-	timestampRecords := tsData.DataFrame.Col(tsData.TimeLabel).Records()
-	valueRecords := tsData.DataFrame.Col(tsData.ValueLabel).Records()
+	// Note: DataFrame columns are normalized to "timestamp" and "value" by LoadAndValidateCSV
+	timestampRecords := tsData.DataFrame.Col("timestamp").Records()
+	valueRecords := tsData.DataFrame.Col("value").Records()
 
 	// Skip header row (index 0)
 	for i := 1; i < len(timestampRecords); i++ {

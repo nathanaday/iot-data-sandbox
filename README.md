@@ -41,58 +41,32 @@ The entity hierarchy follows the pattern shown below:
 `Datasource` - this entity manages save/load from csv data on disk and tracks the datasource record in sqlite. This app model contains the actual timeseries data and other metadata like length, label names, and time span.
 
 
-Intended API Usage (pseudocode examples)
-- Let's walk through a user starting up a fresh, new project
+
+## Workflow Example: Complete Project Setup
 
 ```go
+// 1. Create project
+p, _ := projectSvc.Create("My IoT Dashboard")
 
-p = Project.New("name-of-this-project") // New empty project created with name
-p.numLayers() // 0
-p.save() // saves all entities to storage (for a project with no layers, this is just the sqlite entry of the project itself)
+// 2. Add layer
+layer, _ := projectSvc.AddLayer(p.ProjectId, "Sensor 1")
 
-layer1 = p.addLayer("name-of-new-layer")  // Layer constructor, automatically becomes a member of the project
-layer1.LoadFromCSV("path_to_csv.csv") // Loads csv data into the layer via 'Datasource' entity
-layer1.setColor("#454545")  // supports color HEX only for simplicity
-layer1.rename("layer-1")
+// 3. Load data into layer
+layerSvc.LoadFromCSV(layer.DataLayerId, "sensor_data.csv")
 
-Datapoints[] dp = layer.getData()  // returns list of (timestamp, value) tuples corresponding to data (UI will use this to display data)
+// 4. Configure display
+layerSvc.UpdateColor(layer.DataLayerId, "#4caf50")
+layerSvc.SetVisibility(layer.DataLayerId, true)
 
+// 5. Add another layer with different view
+layer2, _ := layerSvc.Duplicate(layer.DataLayerId, "Sensor 1 (Zoomed)")
+start := time.Now().Add(-24 * time.Hour)
+end := time.Now()
+layerSvc.UpdateDisplayWindow(layer2.DataLayerId, &start, &end)
 
-// Working with the time window
-// The layer has an actual time span that it can support based on the underlying DataSource loaded from csv (example, the csv may cover time from Jan-01-2010 to Feb-01-2010)
-// This is the real time frame and we always need to be able to access it for UI/display convenience
-layer1.getStartTime()  // ISO timestamp (or similar)
-layer1.getEndTime()
-
-// But for actual UI display, we often change the time scale to view the data more closely; this has no effect on the stored start and end time
-layer1.getDisplayStartTime(*time.Time t) // default is getStartTime
-layer1.getDisplayEndTime(*time.Time t)  // default is getEndTime
-layer1.setDisplayStartTime(*time.Time t) // must be GTE getStartTime
-layer1.setDisplayEndTime(*time.Time t)  // must be LTE getEndTime
-
-// Showing and hiding a layer (UI feature)
-layer1.makeVisible()
-layer1.makeHidden()
-
-
-// If you happen to lose reference to the layer returned from the constructor, you can also access it via project
-del layer1
-layer1 = p.getLayerByName("layer-1")
-layer1 = p.getLayerByIndex(0)
-
-// Managing multiple layers
-layer2 = p.addLayer("layer-2")
-layer3 = p.addLayer("layer-3")
-
-layers[] layers = p.getAllLayers  // Returns a list in index order
-p.setLayerIndex("layer-2", 0)  // re-arranges other layers as needed; note, cannot be assigned an index out of bounds
-
-p.save() // Save all layers, data, and info to disk
-
+// 6. Save everything
+projectSvc.SaveAll(p)
 ```
-
-Future steps (do not implement):
-- Manipulating time series data using analysis tools
 
 
 
