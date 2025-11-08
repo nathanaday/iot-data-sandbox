@@ -68,6 +68,11 @@ layerSvc.UpdateDisplayWindow(layer2.DataLayerId, &start, &end)
 projectSvc.SaveAll(p)
 ```
 
+### Generate Swag Docs
 
+Run from the project root:
 
+```
+swag init -g cmd/server/main.go -o docs
+```
 

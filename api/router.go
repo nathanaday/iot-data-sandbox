@@ -41,6 +41,28 @@ func SetupRouter(store *persistence.Store, fileStore *storage.FileStore) *chi.Mu
 		r.Delete("/{id}", dataSourceHandler.DeleteDataSource)
 	})
 
+	projectHandler := data.NewProjectHandler(store, fileStore)
+	r.Route("/api/projects", func(r chi.Router) {
+		r.Post("/", projectHandler.CreateProject)
+		r.Get("/", projectHandler.ListProjects)
+		r.Get("/{id}", projectHandler.GetProject)
+		r.Delete("/{id}", projectHandler.DeleteProject)
+		r.Post("/{id}/layers", projectHandler.AddLayer)
+		r.Get("/{id}/layers", projectHandler.GetProjectLayers)
+	})
+
+	layerHandler := data.NewLayerHandler(store, fileStore)
+	r.Route("/api/layers", func(r chi.Router) {
+		r.Get("/{id}", layerHandler.GetLayer)
+		r.Delete("/{id}", layerHandler.DeleteLayer)
+		r.Post("/{id}/load-csv", layerHandler.LoadCSV)
+		r.Put("/{id}/color", layerHandler.UpdateColor)
+		r.Put("/{id}/visibility", layerHandler.UpdateVisibility)
+		r.Post("/{id}/duplicate", layerHandler.DuplicateLayer)
+		r.Put("/{id}/display-window", layerHandler.UpdateDisplayWindow)
+		r.Get("/{id}/data", layerHandler.GetLayerData)
+	})
+
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))

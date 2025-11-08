@@ -1,0 +1,776 @@
+basePath: /
+definitions:
+  data.CreateLayerRequest:
+    properties:
+      name:
+        type: string
+    type: object
+  data.CreateProjectRequest:
+    properties:
+      name:
+        type: string
+    type: object
+  data.DataPoint:
+    properties:
+      timestamp:
+        type: string
+      value:
+        type: number
+    type: object
+  data.DataQueryResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/data.DataPoint'
+        type: array
+      end_time:
+        type: string
+      row_count:
+        type: integer
+      start_time:
+        type: string
+    type: object
+  data.DataSourceListResponse:
+    properties:
+      data_sources:
+        items:
+          $ref: '#/definitions/data.DataSourceMetadata'
+        type: array
+    type: object
+  data.DataSourceMetadata:
+    properties:
+      data_source_id:
+        type: integer
+      end_time:
+        type: string
+      name:
+        type: string
+      row_count:
+        type: integer
+      start_time:
+        type: string
+      time_label:
+        type: string
+      type:
+        type: string
+      value_label:
+        type: string
+      when_created:
+        type: string
+    type: object
+  data.DuplicateLayerRequest:
+    properties:
+      new_name:
+        type: string
+    type: object
+  data.ErrorResponse:
+    properties:
+      error:
+        type: string
+    type: object
+  data.LayerListResponse:
+    properties:
+      layers:
+        items:
+          $ref: '#/definitions/data.LayerResponse'
+        type: array
+    type: object
+  data.LayerResponse:
+    properties:
+      color:
+        type: string
+      data_layer_id:
+        type: integer
+      data_source_id:
+        type: integer
+      display_end_time:
+        type: string
+      display_start_time:
+        type: string
+      is_visible:
+        type: boolean
+      name:
+        type: string
+      project_id:
+        type: integer
+      z_index:
+        type: integer
+    type: object
+  data.LoadCSVRequest:
+    properties:
+      csv_filename:
+        type: string
+    type: object
+  data.ProjectListResponse:
+    properties:
+      projects:
+        items:
+          $ref: '#/definitions/data.ProjectResponse'
+        type: array
+    type: object
+  data.ProjectResponse:
+    properties:
+      layer_count:
+        type: integer
+      name:
+        type: string
+      project_id:
+        type: integer
+      when_created:
+        type: string
+    type: object
+  data.UpdateColorRequest:
+    properties:
+      color:
+        type: string
+    type: object
+  data.UpdateDisplayWindowRequest:
+    properties:
+      end_time:
+        type: string
+      start_time:
+        type: string
+    type: object
+  data.UpdateVisibilityRequest:
+    properties:
+      is_visible:
+        type: boolean
+    type: object
+  data.UploadResponse:
+    properties:
+      data_source_id:
+        type: integer
+      end_time:
+        type: string
+      name:
+        type: string
+      row_count:
+        type: integer
+      start_time:
+        type: string
+      time_label:
+        type: string
+      value_label:
+        type: string
+      when_created:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact:
+    name: API Support
+  description: |-
+    API for managing and querying time series data from IoT sensors
+
+    This API allows you to upload CSV files containing time series data,
+    query the data with time range filters, and manage datasources.
+
+    Supported timestamp formats: ISO8601, RFC3339, Unix timestamps (seconds/milliseconds), Julian Day
+  license:
+    name: MIT
+  termsOfService: http://swagger.io/terms/
+  title: IoT Data Sandbox API
+  version: "1.0"
+paths:
+  /api/datasources:
+    get:
+      description: Get a list of all registered datasources with their metadata
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/data.DataSourceListResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+      summary: List all datasources
+      tags:
+      - datasources
+    post:
+      consumes:
+      - multipart/form-data
+      description: Upload a CSV file containing time series data. The CSV must have
+        'timestamp' and 'value' columns. Supports various timestamp formats (ISO8601,
+        Unix, Julian Day).
+      parameters:
+      - description: CSV file to upload
+        in: formData
+        name: file
+        required: true
+        type: file
+      - description: Name for the datasource (defaults to filename)
+        in: formData
+        name: name
+        type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/data.UploadResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+      summary: Upload a CSV datasource
+      tags:
+      - datasources
+  /api/datasources/{id}:
+    delete:
+      description: Delete a datasource and its associated CSV file
+      parameters:
+      - description: Datasource ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+      summary: Delete a datasource
+      tags:
+      - datasources
+    get:
+      description: Get metadata for a specific datasource by ID
+      parameters:
+      - description: Datasource ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/data.DataSourceMetadata'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+      summary: Get datasource metadata
+      tags:
+      - datasources
+  /api/datasources/{id}/data:
+    get:
+      description: Query time series data from a datasource with optional time range
+        filtering
+      parameters:
+      - description: Datasource ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Start time in RFC3339 format (e.g., 2024-01-01T00:00:00Z)
+        in: query
+        name: start_time
+        type: string
+      - description: End time in RFC3339 format (e.g., 2024-01-01T23:59:59Z)
+        in: query
+        name: end_time
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/data.DataQueryResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+      summary: Query time series data
+      tags:
+      - datasources
+  /api/layers/{id}:
+    delete:
+      description: Delete a layer by ID
+      parameters:
+      - description: Layer ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+      summary: Delete a layer
+      tags:
+      - layers
+    get:
+      description: Get a specific layer by ID
+      parameters:
+      - description: Layer ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/data.LayerResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+      summary: Get layer details
+      tags:
+      - layers
+  /api/layers/{id}/color:
+    put:
+      consumes:
+      - application/json
+      description: Update the display color of a layer
+      parameters:
+      - description: Layer ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Color value (hex format)
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/data.UpdateColorRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/data.LayerResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+      summary: Update layer color
+      tags:
+      - layers
+  /api/layers/{id}/data:
+    get:
+      description: Get the time series data points for a layer (includes data from
+        associated datasource)
+      parameters:
+      - description: Layer ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Start time in RFC3339 format (e.g., 2024-01-01T00:00:00Z)
+        in: query
+        name: start_time
+        type: string
+      - description: End time in RFC3339 format (e.g., 2024-01-01T23:59:59Z)
+        in: query
+        name: end_time
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/data.DataQueryResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+      summary: Get layer time series data
+      tags:
+      - layers
+  /api/layers/{id}/display-window:
+    put:
+      consumes:
+      - application/json
+      description: Update the display time window (start and end times) for a layer
+      parameters:
+      - description: Layer ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Display window times
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/data.UpdateDisplayWindowRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/data.LayerResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+      summary: Update layer display time window
+      tags:
+      - layers
+  /api/layers/{id}/duplicate:
+    post:
+      consumes:
+      - application/json
+      description: Create a copy of a layer with a new name
+      parameters:
+      - description: Layer ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: New layer name
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/data.DuplicateLayerRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/data.LayerResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+      summary: Duplicate a layer
+      tags:
+      - layers
+  /api/layers/{id}/load-csv:
+    post:
+      consumes:
+      - application/json
+      description: Load data from an existing CSV file into the layer (creates a new
+        datasource)
+      parameters:
+      - description: Layer ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: CSV filename
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/data.LoadCSVRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/data.LayerResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+      summary: Load CSV data into layer
+      tags:
+      - layers
+  /api/layers/{id}/visibility:
+    put:
+      consumes:
+      - application/json
+      description: Update the visibility state of a layer
+      parameters:
+      - description: Layer ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Visibility state
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/data.UpdateVisibilityRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/data.LayerResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+      summary: Update layer visibility
+      tags:
+      - layers
+  /api/projects:
+    get:
+      description: Get a list of all projects
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/data.ProjectListResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+      summary: List all projects
+      tags:
+      - projects
+    post:
+      consumes:
+      - application/json
+      description: Create a new empty project
+      parameters:
+      - description: Project details
+        in: body
+        name: project
+        required: true
+        schema:
+          $ref: '#/definitions/data.CreateProjectRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/data.ProjectResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+      summary: Create a new project
+      tags:
+      - projects
+  /api/projects/{id}:
+    delete:
+      description: Delete a project and all its layers (cascade)
+      parameters:
+      - description: Project ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+      summary: Delete a project
+      tags:
+      - projects
+    get:
+      description: Get a specific project by ID with layer count
+      parameters:
+      - description: Project ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/data.ProjectResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+      summary: Get project details
+      tags:
+      - projects
+  /api/projects/{id}/layers:
+    get:
+      description: Get all layers that belong to a specific project
+      parameters:
+      - description: Project ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/data.LayerListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+      summary: Get all layers in a project
+      tags:
+      - projects
+    post:
+      consumes:
+      - application/json
+      description: Create a new layer and add it to the project
+      parameters:
+      - description: Project ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Layer details
+        in: body
+        name: layer
+        required: true
+        schema:
+          $ref: '#/definitions/data.CreateLayerRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/data.LayerResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+      summary: Add a layer to a project
+      tags:
+      - projects
+swagger: "2.0"
