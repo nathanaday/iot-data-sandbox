@@ -73,6 +73,6 @@ projectSvc.SaveAll(p)
 Run from the project root:
 
 ```
-swag init -g cmd/server/main.go -o docs
+~/go/bin/swag init -g cmd/server/main.go -o docs
 ```
 

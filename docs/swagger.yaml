@@ -92,6 +92,21 @@ definitions:
       z_index:
         type: integer
     type: object
+  data.PreviewDataResponse:
+    properties:
+      end_time:
+        type: string
+      row_count:
+        type: integer
+      start_time:
+        type: string
+      time_label:
+        type: string
+      type:
+        type: string
+      value_label:
+        type: string
+    type: object
   data.ProjectListResponse:
     properties:
       projects:
@@ -432,6 +447,37 @@ paths:
       summary: Get layer time series data
       tags:
       - layers
+  /api/layers/{id}/data/metadata:
+    get:
+      description: Get metadata about the data source associated with a layer
+      parameters:
+      - description: Layer ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/data.DataSourceMetadata'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+      summary: Get layer data source metadata
+      tags:
+      - layers
   /api/layers/{id}/duplicate:
     post:
       consumes:
@@ -721,4 +767,34 @@ paths:
       summary: Add a layer to a project
       tags:
       - projects
+  /api/ui/preview_data:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Upload and preview a CSV file to see metadata without creating
+        a datasource or saving the file
+      parameters:
+      - description: CSV file to preview
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/data.PreviewDataResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+      summary: Preview CSV data before saving
+      tags:
+      - ui
 swagger: "2.0"

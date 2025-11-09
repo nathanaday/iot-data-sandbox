@@ -104,6 +104,16 @@ type DuplicateLayerRequest struct {
 	NewName string `json:"new_name"`
 }
 
+// PreviewDataResponse contains metadata about a CSV file preview (without saving)
+type PreviewDataResponse struct {
+	Type       string     `json:"type"`
+	RowCount   int        `json:"row_count"`
+	StartTime  *time.Time `json:"start_time,omitempty"`
+	EndTime    *time.Time `json:"end_time,omitempty"`
+	TimeLabel  string     `json:"time_label"`
+	ValueLabel string     `json:"value_label"`
+}
+
 // Helper functions
 
 func respondJSON(w http.ResponseWriter, data interface{}, status int) {

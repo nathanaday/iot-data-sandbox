@@ -285,6 +285,50 @@ func (h *LayerHandler) DuplicateLayer(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, response, http.StatusCreated)
 }
 
+// GetLayerDataMetadata godoc
+// @Summary Get layer data source metadata
+// @Description Get metadata about the data source associated with a layer
+// @Tags layers
+// @Produce json
+// @Param id path int true "Layer ID"
+// @Success 200 {object} DataSourceMetadata
+// @Failure 400 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /api/layers/{id}/data/metadata [get]
+func (h *LayerHandler) GetLayerDataMetadata(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		respondError(w, "Invalid layer ID", http.StatusBadRequest)
+		return
+	}
+
+	layer, dataSourceSchema, err := h.store.LoadLayerWithDataSource(id)
+	if err != nil {
+		respondError(w, "Layer not found", http.StatusNotFound)
+		return
+	}
+
+	if layer.DataSourceId == nil || dataSourceSchema == nil {
+		respondError(w, "Layer has no associated data source", http.StatusNotFound)
+		return
+	}
+
+	metadata := DataSourceMetadata{
+		DataSourceId: dataSourceSchema.DataSourceId,
+		Name:         dataSourceSchema.Name,
+		Type:         "csv", // DataSourceType 0 = CSV
+		RowCount:     dataSourceSchema.RowCount,
+		StartTime:    dataSourceSchema.StartTime,
+		EndTime:      dataSourceSchema.EndTime,
+		TimeLabel:    dataSourceSchema.TimeLabel,
+		ValueLabel:   dataSourceSchema.ValueLabel,
+		WhenCreated:  dataSourceSchema.WhenCreated,
+	}
+
+	respondJSON(w, metadata, http.StatusOK)
+}
+
 // GetLayerData godoc
 // @Summary Get layer time series data
 // @Description Get the time series data points for a layer (includes data from associated datasource)

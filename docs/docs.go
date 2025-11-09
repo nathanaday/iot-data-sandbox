@@ -432,6 +432,53 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/layers/{id}/data/metadata": {
+            "get": {
+                "description": "Get metadata about the data source associated with a layer",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "layers"
+                ],
+                "summary": "Get layer data source metadata",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Layer ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/data.DataSourceMetadata"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/data.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/data.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/data.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/layers/{id}/duplicate": {
             "post": {
                 "description": "Create a copy of a layer with a new name",
@@ -866,6 +913,50 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/api/ui/preview_data": {
+            "post": {
+                "description": "Upload and preview a CSV file to see metadata without creating a datasource or saving the file",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ui"
+                ],
+                "summary": "Preview CSV data before saving",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "CSV file to preview",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/data.PreviewDataResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/data.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/data.ErrorResponse"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -1009,6 +1100,29 @@ const docTemplate = `{
                 },
                 "z_index": {
                     "type": "integer"
+                }
+            }
+        },
+        "data.PreviewDataResponse": {
+            "type": "object",
+            "properties": {
+                "end_time": {
+                    "type": "string"
+                },
+                "row_count": {
+                    "type": "integer"
+                },
+                "start_time": {
+                    "type": "string"
+                },
+                "time_label": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "value_label": {
+                    "type": "string"
                 }
             }
         },

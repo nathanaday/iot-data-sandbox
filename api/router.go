@@ -60,7 +60,13 @@ func SetupRouter(store *persistence.Store, fileStore *storage.FileStore) *chi.Mu
 		r.Put("/{id}/color", layerHandler.UpdateColor)
 		r.Put("/{id}/visibility", layerHandler.UpdateVisibility)
 		r.Post("/{id}/duplicate", layerHandler.DuplicateLayer)
+		r.Get("/{id}/data/metadata", layerHandler.GetLayerDataMetadata)
 		r.Get("/{id}/data", layerHandler.GetLayerData)
+	})
+
+	uiHandler := data.NewUIHandler(store, fileStore)
+	r.Route("/api/ui", func(r chi.Router) {
+		r.Post("/preview_data", uiHandler.PreviewCSV)
 	})
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
