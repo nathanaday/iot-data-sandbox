@@ -84,3 +84,6 @@ __debug_bin
 tmp/
 
 CLAUDE.md
+
+// This project's compiled binary
+iot-data-sandbox

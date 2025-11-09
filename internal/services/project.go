@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/nathanaday/iot-data-sandbox/internal/models"
 	"github.com/nathanaday/iot-data-sandbox/internal/persistence"
@@ -24,7 +25,8 @@ func NewProjectService(store *persistence.Store, dataLayerService *DataLayerServ
 // Create creates a new empty project
 func (s *ProjectService) Create(name string) (*models.Project, error) {
 	project := &models.Project{
-		Name: name,
+		Name:        name,
+		WhenCreated: time.Now(),
 	}
 
 	if err := s.store.SaveProject(project); err != nil {
