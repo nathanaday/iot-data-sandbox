@@ -432,65 +432,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/layers/{id}/display-window": {
-            "put": {
-                "description": "Update the display time window (start and end times) for a layer",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "layers"
-                ],
-                "summary": "Update layer display time window",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "Layer ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Display window times",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/data.UpdateDisplayWindowRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/data.LayerResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/data.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/data.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/data.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/api/layers/{id}/duplicate": {
             "post": {
                 "description": "Create a copy of a layer with a new name",
@@ -552,9 +493,9 @@ const docTemplate = `{
         },
         "/api/layers/{id}/load-csv": {
             "post": {
-                "description": "Load data from an existing CSV file into the layer (creates a new datasource)",
+                "description": "Upload and load a CSV file into the layer (creates a new datasource). The CSV must have 'timestamp' and 'value' columns.",
                 "consumes": [
-                    "application/json"
+                    "multipart/form-data"
                 ],
                 "produces": [
                     "application/json"
@@ -572,13 +513,17 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "CSV filename",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/data.LoadCSVRequest"
-                        }
+                        "type": "file",
+                        "description": "CSV file to upload",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Name for the datasource (defaults to filename)",
+                        "name": "name",
+                        "in": "formData"
                     }
                 ],
                 "responses": {
@@ -1053,12 +998,6 @@ const docTemplate = `{
                 "data_source_id": {
                     "type": "integer"
                 },
-                "display_end_time": {
-                    "type": "string"
-                },
-                "display_start_time": {
-                    "type": "string"
-                },
                 "is_visible": {
                     "type": "boolean"
                 },
@@ -1070,14 +1009,6 @@ const docTemplate = `{
                 },
                 "z_index": {
                     "type": "integer"
-                }
-            }
-        },
-        "data.LoadCSVRequest": {
-            "type": "object",
-            "properties": {
-                "csv_filename": {
-                    "type": "string"
                 }
             }
         },
@@ -1113,17 +1044,6 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "color": {
-                    "type": "string"
-                }
-            }
-        },
-        "data.UpdateDisplayWindowRequest": {
-            "type": "object",
-            "properties": {
-                "end_time": {
-                    "type": "string"
-                },
-                "start_time": {
                     "type": "string"
                 }
             }

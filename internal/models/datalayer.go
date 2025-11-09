@@ -9,11 +9,9 @@ type DataLayer struct {
 	Name         string
 
 	// UI/UX properties
-	Color            string
-	ZIndex           int
-	IsVisible        bool
-	DisplayStartTime *time.Time
-	DisplayEndTime   *time.Time
+	Color     string
+	ZIndex    int
+	IsVisible bool
 
 	// In-memory relationships (not persisted)
 	Project    *Project
@@ -34,14 +32,6 @@ func (dl *DataLayer) GetTimeRange() (start *time.Time, end *time.Time) {
 		return nil, nil
 	}
 	return dl.DataSource.GetTimeRange()
-}
-
-// GetDisplayTimeRange returns the display window (defaults to actual time range if not set)
-func (dl *DataLayer) GetDisplayTimeRange() (start *time.Time, end *time.Time) {
-	if dl.DisplayStartTime != nil && dl.DisplayEndTime != nil {
-		return dl.DisplayStartTime, dl.DisplayEndTime
-	}
-	return dl.GetTimeRange()
 }
 
 // IsHidden returns true if the layer is hidden in the UI

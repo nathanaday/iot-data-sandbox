@@ -71,15 +71,13 @@ type CreateProjectRequest struct {
 // Layer response types
 
 type LayerResponse struct {
-	DataLayerId      int64      `json:"data_layer_id"`
-	ProjectId        int64      `json:"project_id"`
-	DataSourceId     *int64     `json:"data_source_id,omitempty"`
-	Name             string     `json:"name"`
-	Color            string     `json:"color"`
-	ZIndex           int        `json:"z_index"`
-	IsVisible        bool       `json:"is_visible"`
-	DisplayStartTime *time.Time `json:"display_start_time,omitempty"`
-	DisplayEndTime   *time.Time `json:"display_end_time,omitempty"`
+	DataLayerId  int64  `json:"data_layer_id"`
+	ProjectId    int64  `json:"project_id"`
+	DataSourceId *int64 `json:"data_source_id,omitempty"`
+	Name         string `json:"name"`
+	Color        string `json:"color"`
+	ZIndex       int    `json:"z_index"`
+	IsVisible    bool   `json:"is_visible"`
 }
 
 type LayerListResponse struct {
@@ -104,11 +102,6 @@ type UpdateVisibilityRequest struct {
 
 type DuplicateLayerRequest struct {
 	NewName string `json:"new_name"`
-}
-
-type UpdateDisplayWindowRequest struct {
-	StartTime *time.Time `json:"start_time,omitempty"`
-	EndTime   *time.Time `json:"end_time,omitempty"`
 }
 
 // Helper functions

@@ -4,7 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/nathanaday/iot-data-sandbox/internal/persistence"
@@ -83,12 +86,13 @@ func (h *LayerHandler) DeleteLayer(w http.ResponseWriter, r *http.Request) {
 
 // LoadCSV godoc
 // @Summary Load CSV data into layer
-// @Description Load data from an existing CSV file into the layer (creates a new datasource)
+// @Description Upload and load a CSV file into the layer (creates a new datasource). The CSV must have 'timestamp' and 'value' columns.
 // @Tags layers
-// @Accept json
+// @Accept multipart/form-data
 // @Produce json
 // @Param id path int true "Layer ID"
-// @Param request body LoadCSVRequest true "CSV filename"
+// @Param file formData file true "CSV file to upload"
+// @Param name formData string false "Name for the datasource (defaults to filename)"
 // @Success 200 {object} LayerResponse
 // @Failure 400 {object} ErrorResponse
 // @Failure 404 {object} ErrorResponse
@@ -101,22 +105,48 @@ func (h *LayerHandler) LoadCSV(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req LoadCSVRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondError(w, "Invalid request body", http.StatusBadRequest)
+	// Parse multipart form
+	if err := r.ParseMultipartForm(10 << 20); err != nil { // 10MB max
+		respondError(w, "Failed to parse multipart form", http.StatusBadRequest)
 		return
 	}
 
-	if req.CSVFilename == "" {
-		respondError(w, "CSV filename is required", http.StatusBadRequest)
+	// Get the uploaded file
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		respondError(w, "No file provided", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	// Validate file extension
+	if !strings.HasSuffix(strings.ToLower(header.Filename), ".csv") {
+		respondError(w, "File must be a CSV", http.StatusBadRequest)
 		return
 	}
 
-	if err := h.dataLayerService.LoadFromCSV(id, req.CSVFilename); err != nil {
+	// Get optional datasource name from form
+	name := r.FormValue("name")
+	if name == "" {
+		name = strings.TrimSuffix(header.Filename, filepath.Ext(header.Filename))
+	}
+
+	// Save the file
+	savedFilename, err := h.fileStore.SaveFile(header.Filename, file, 10<<20)
+	if err != nil {
+		respondError(w, fmt.Sprintf("Failed to save file: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// Load CSV into layer
+	if err := h.dataLayerService.LoadFromCSV(id, savedFilename); err != nil {
+		// Clean up the saved file on error
+		h.fileStore.DeleteFile(savedFilename)
 		respondError(w, fmt.Sprintf("Failed to load CSV: %v", err), http.StatusInternalServerError)
 		return
 	}
 
+	// Return updated layer
 	layer, err := h.dataLayerService.LoadByID(id)
 	if err != nil {
 		respondError(w, "Failed to load updated layer", http.StatusInternalServerError)
@@ -255,47 +285,6 @@ func (h *LayerHandler) DuplicateLayer(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, response, http.StatusCreated)
 }
 
-// UpdateDisplayWindow godoc
-// @Summary Update layer display time window
-// @Description Update the display time window (start and end times) for a layer
-// @Tags layers
-// @Accept json
-// @Produce json
-// @Param id path int true "Layer ID"
-// @Param request body UpdateDisplayWindowRequest true "Display window times"
-// @Success 200 {object} LayerResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Router /api/layers/{id}/display-window [put]
-func (h *LayerHandler) UpdateDisplayWindow(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		respondError(w, "Invalid layer ID", http.StatusBadRequest)
-		return
-	}
-
-	var req UpdateDisplayWindowRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondError(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	if err := h.dataLayerService.UpdateDisplayWindow(id, req.StartTime, req.EndTime); err != nil {
-		respondError(w, fmt.Sprintf("Failed to update display window: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	layer, err := h.dataLayerService.LoadByID(id)
-	if err != nil {
-		respondError(w, "Failed to load updated layer", http.StatusInternalServerError)
-		return
-	}
-
-	response := modelToLayerResponse(layer)
-	respondJSON(w, response, http.StatusOK)
-}
-
 // GetLayerData godoc
 // @Summary Get layer time series data
 // @Description Get the time series data points for a layer (includes data from associated datasource)
@@ -331,22 +320,47 @@ func (h *LayerHandler) GetLayerData(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Parse time range filters
-	var startTimeFilter, endTimeFilter *interface{}
+	var startTime, endTime *time.Time
 	if startStr := r.URL.Query().Get("start_time"); startStr != "" {
-		// Could parse and filter, but for simplicity just return all data
-		// This matches the datasource query behavior
-	}
-	if endStr := r.URL.Query().Get("end_time"); endStr != "" {
-		// Could parse and filter
+		t, err := time.Parse(time.RFC3339, startStr)
+		if err != nil {
+			respondError(w, "Invalid start_time format, use RFC3339", http.StatusBadRequest)
+			return
+		}
+		startTime = &t
 	}
 
+	if endStr := r.URL.Query().Get("end_time"); endStr != "" {
+		t, err := time.Parse(time.RFC3339, endStr)
+		if err != nil {
+			respondError(w, "Invalid end_time format, use RFC3339", http.StatusBadRequest)
+			return
+		}
+		endTime = &t
+	}
+
+	// Filter data based on time range
 	dataPoints := make([]DataPoint, 0, len(layer.DataSource.Data))
+	var actualStart, actualEnd time.Time
 
 	for _, entry := range layer.DataSource.Data {
+		// Apply time range filter
+		if startTime != nil && entry.Timestamp.Before(*startTime) {
+			continue
+		}
+		if endTime != nil && entry.Timestamp.After(*endTime) {
+			continue
+		}
+
 		dataPoints = append(dataPoints, DataPoint{
 			Timestamp: entry.Timestamp,
 			Value:     entry.Value,
 		})
+
+		if len(dataPoints) == 1 {
+			actualStart = entry.Timestamp
+		}
+		actualEnd = entry.Timestamp
 	}
 
 	response := DataQueryResponse{
@@ -355,11 +369,9 @@ func (h *LayerHandler) GetLayerData(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(dataPoints) > 0 {
-		response.StartTime = dataPoints[0].Timestamp
-		response.EndTime = dataPoints[len(dataPoints)-1].Timestamp
+		response.StartTime = actualStart
+		response.EndTime = actualEnd
 	}
 
-	_ = startTimeFilter
-	_ = endTimeFilter
 	respondJSON(w, response, http.StatusOK)
 }

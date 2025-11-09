@@ -63,8 +63,6 @@ func createTables(db *sql.DB) error {
         color TEXT NOT NULL DEFAULT '#3b82f6',
         z_index INTEGER NOT NULL DEFAULT 0,
         is_visible BOOLEAN NOT NULL DEFAULT 1,
-        display_start_time TIMESTAMP,
-        display_end_time TIMESTAMP,
         FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE CASCADE,
         FOREIGN KEY (data_source_id) REFERENCES data_sources(data_source_id) ON DELETE CASCADE
     );

@@ -236,14 +236,12 @@ func (h *ProjectHandler) GetProjectLayers(w http.ResponseWriter, r *http.Request
 // Helper function to convert model to response
 func modelToLayerResponse(layer *models.DataLayer) LayerResponse {
 	return LayerResponse{
-		DataLayerId:      layer.DataLayerId,
-		ProjectId:        layer.ProjectId,
-		DataSourceId:     layer.DataSourceId,
-		Name:             layer.Name,
-		Color:            layer.Color,
-		ZIndex:           layer.ZIndex,
-		IsVisible:        layer.IsVisible,
-		DisplayStartTime: layer.DisplayStartTime,
-		DisplayEndTime:   layer.DisplayEndTime,
+		DataLayerId:  layer.DataLayerId,
+		ProjectId:    layer.ProjectId,
+		DataSourceId: layer.DataSourceId,
+		Name:         layer.Name,
+		Color:        layer.Color,
+		ZIndex:       layer.ZIndex,
+		IsVisible:    layer.IsVisible,
 	}
 }

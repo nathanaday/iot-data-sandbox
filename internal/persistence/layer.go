@@ -11,9 +11,9 @@ import (
 func (s *Store) SaveLayer(layer *models.DataLayer) error {
 	if layer.DataLayerId == 0 {
 		result, err := s.db.Exec(`
-            INSERT INTO data_layers (project_id, data_source_id, name, color, z_index, is_visible, display_start_time, display_end_time)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-			layer.ProjectId, layer.DataSourceId, layer.Name, layer.Color, layer.ZIndex, layer.IsVisible, layer.DisplayStartTime, layer.DisplayEndTime,
+            INSERT INTO data_layers (project_id, data_source_id, name, color, z_index, is_visible)
+            VALUES (?, ?, ?, ?, ?, ?)`,
+			layer.ProjectId, layer.DataSourceId, layer.Name, layer.Color, layer.ZIndex, layer.IsVisible,
 		)
 		if err != nil {
 			return err
@@ -22,9 +22,9 @@ func (s *Store) SaveLayer(layer *models.DataLayer) error {
 	} else {
 		_, err := s.db.Exec(`
             UPDATE data_layers
-            SET project_id=?, data_source_id=?, name=?, color=?, z_index=?, is_visible=?, display_start_time=?, display_end_time=?
+            SET project_id=?, data_source_id=?, name=?, color=?, z_index=?, is_visible=?
             WHERE data_layer_id=?`,
-			layer.ProjectId, layer.DataSourceId, layer.Name, layer.Color, layer.ZIndex, layer.IsVisible, layer.DisplayStartTime, layer.DisplayEndTime, layer.DataLayerId,
+			layer.ProjectId, layer.DataSourceId, layer.Name, layer.Color, layer.ZIndex, layer.IsVisible, layer.DataLayerId,
 		)
 		return err
 	}
@@ -36,9 +36,9 @@ func (s *Store) LoadLayer(id int64) (*models.DataLayer, error) {
 	layer := &models.DataLayer{}
 	var dataSourceId sql.NullInt64
 	err := s.db.QueryRow(`
-        SELECT data_layer_id, project_id, data_source_id, name, color, z_index, is_visible, display_start_time, display_end_time
+        SELECT data_layer_id, project_id, data_source_id, name, color, z_index, is_visible
         FROM data_layers WHERE data_layer_id=?`, id,
-	).Scan(&layer.DataLayerId, &layer.ProjectId, &dataSourceId, &layer.Name, &layer.Color, &layer.ZIndex, &layer.IsVisible, &layer.DisplayStartTime, &layer.DisplayEndTime)
+	).Scan(&layer.DataLayerId, &layer.ProjectId, &dataSourceId, &layer.Name, &layer.Color, &layer.ZIndex, &layer.IsVisible)
 
 	if err != nil {
 		return nil, err
@@ -54,7 +54,7 @@ func (s *Store) LoadLayer(id int64) (*models.DataLayer, error) {
 // LoadAllLayers retrieves all DataLayers
 func (s *Store) LoadAllLayers() ([]*models.DataLayer, error) {
 	rows, err := s.db.Query(`
-        SELECT data_layer_id, project_id, data_source_id, name, color, z_index, is_visible, display_start_time, display_end_time
+        SELECT data_layer_id, project_id, data_source_id, name, color, z_index, is_visible
         FROM data_layers ORDER BY data_layer_id`)
 	if err != nil {
 		return nil, err
@@ -65,7 +65,7 @@ func (s *Store) LoadAllLayers() ([]*models.DataLayer, error) {
 	for rows.Next() {
 		layer := &models.DataLayer{}
 		var dataSourceId sql.NullInt64
-		if err := rows.Scan(&layer.DataLayerId, &layer.ProjectId, &dataSourceId, &layer.Name, &layer.Color, &layer.ZIndex, &layer.IsVisible, &layer.DisplayStartTime, &layer.DisplayEndTime); err != nil {
+		if err := rows.Scan(&layer.DataLayerId, &layer.ProjectId, &dataSourceId, &layer.Name, &layer.Color, &layer.ZIndex, &layer.IsVisible); err != nil {
 			return nil, err
 		}
 		if dataSourceId.Valid {
@@ -79,7 +79,7 @@ func (s *Store) LoadAllLayers() ([]*models.DataLayer, error) {
 // LoadLayersByProjectId retrieves all DataLayers for a specific project ordered by z_index
 func (s *Store) LoadLayersByProjectId(projectId int64) ([]*models.DataLayer, error) {
 	rows, err := s.db.Query(`
-        SELECT data_layer_id, project_id, data_source_id, name, color, z_index, is_visible, display_start_time, display_end_time
+        SELECT data_layer_id, project_id, data_source_id, name, color, z_index, is_visible
         FROM data_layers WHERE project_id=? ORDER BY z_index, data_layer_id`, projectId)
 	if err != nil {
 		return nil, err
@@ -90,7 +90,7 @@ func (s *Store) LoadLayersByProjectId(projectId int64) ([]*models.DataLayer, err
 	for rows.Next() {
 		layer := &models.DataLayer{}
 		var dataSourceId sql.NullInt64
-		if err := rows.Scan(&layer.DataLayerId, &layer.ProjectId, &dataSourceId, &layer.Name, &layer.Color, &layer.ZIndex, &layer.IsVisible, &layer.DisplayStartTime, &layer.DisplayEndTime); err != nil {
+		if err := rows.Scan(&layer.DataLayerId, &layer.ProjectId, &dataSourceId, &layer.Name, &layer.Color, &layer.ZIndex, &layer.IsVisible); err != nil {
 			return nil, err
 		}
 		if dataSourceId.Valid {
@@ -104,7 +104,7 @@ func (s *Store) LoadLayersByProjectId(projectId int64) ([]*models.DataLayer, err
 // LoadLayersByDataSourceId retrieves all DataLayers that use a specific datasource
 func (s *Store) LoadLayersByDataSourceId(dataSourceId int64) ([]*models.DataLayer, error) {
 	rows, err := s.db.Query(`
-        SELECT data_layer_id, project_id, data_source_id, name, color, z_index, is_visible, display_start_time, display_end_time
+        SELECT data_layer_id, project_id, data_source_id, name, color, z_index, is_visible
         FROM data_layers WHERE data_source_id=? ORDER BY data_layer_id`, dataSourceId)
 	if err != nil {
 		return nil, err
@@ -115,7 +115,7 @@ func (s *Store) LoadLayersByDataSourceId(dataSourceId int64) ([]*models.DataLaye
 	for rows.Next() {
 		layer := &models.DataLayer{}
 		var dataSourceIdVal sql.NullInt64
-		if err := rows.Scan(&layer.DataLayerId, &layer.ProjectId, &dataSourceIdVal, &layer.Name, &layer.Color, &layer.ZIndex, &layer.IsVisible, &layer.DisplayStartTime, &layer.DisplayEndTime); err != nil {
+		if err := rows.Scan(&layer.DataLayerId, &layer.ProjectId, &dataSourceIdVal, &layer.Name, &layer.Color, &layer.ZIndex, &layer.IsVisible); err != nil {
 			return nil, err
 		}
 		if dataSourceIdVal.Valid {

@@ -2,7 +2,6 @@ package main
 
 import (
 	"log"
-	"time"
 
 	"github.com/nathanaday/iot-data-sandbox/internal/persistence"
 	"github.com/nathanaday/iot-data-sandbox/internal/services"
@@ -62,13 +61,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to duplicate layer: %v", err)
 	}
-	start := time.Now().Add(-24 * time.Hour)
-	end := time.Now()
-	err = dataLayerSvc.UpdateDisplayWindow(layer2.DataLayerId, &start, &end)
-	if err != nil {
-		log.Fatalf("Failed to update display window: %v", err)
-	}
-	log.Printf("Created duplicate layer with custom time window")
+	log.Printf("Created duplicate layer: %s (ID: %d)", layer2.Name, layer2.DataLayerId)
 
 	// Project Saving
 	err = projectSvc.SaveAll(p)

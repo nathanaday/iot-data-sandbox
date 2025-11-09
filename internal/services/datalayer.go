@@ -2,7 +2,6 @@ package services
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/nathanaday/iot-data-sandbox/internal/models"
 	"github.com/nathanaday/iot-data-sandbox/internal/persistence"
@@ -107,23 +106,6 @@ func (s *DataLayerService) Delete(id int64) error {
 	return nil
 }
 
-// UpdateDisplayWindow updates the display time window for a layer
-func (s *DataLayerService) UpdateDisplayWindow(layerId int64, start, end *time.Time) error {
-	layer, err := s.store.LoadLayer(layerId)
-	if err != nil {
-		return fmt.Errorf("failed to load layer: %w", err)
-	}
-
-	layer.DisplayStartTime = start
-	layer.DisplayEndTime = end
-
-	if err := s.store.SaveLayer(layer); err != nil {
-		return fmt.Errorf("failed to update display window: %w", err)
-	}
-
-	return nil
-}
-
 // SetVisibility updates the visibility state of a layer
 func (s *DataLayerService) SetVisibility(layerId int64, visible bool) error {
 	layer, err := s.store.LoadLayer(layerId)
@@ -149,14 +131,12 @@ func (s *DataLayerService) Duplicate(layerId int64, newName string) (*models.Dat
 
 	// Create new layer with same properties but different name
 	duplicate := &models.DataLayer{
-		ProjectId:        original.ProjectId,
-		DataSourceId:     original.DataSourceId, // shares same datasource
-		Name:             newName,
-		Color:            original.Color,
-		ZIndex:           original.ZIndex + 1, // place above original
-		IsVisible:        original.IsVisible,
-		DisplayStartTime: original.DisplayStartTime,
-		DisplayEndTime:   original.DisplayEndTime,
+		ProjectId:    original.ProjectId,
+		DataSourceId: original.DataSourceId, // shares same datasource
+		Name:         newName,
+		Color:        original.Color,
+		ZIndex:       original.ZIndex + 1, // place above original
+		IsVisible:    original.IsVisible,
 	}
 
 	if err := s.store.SaveLayer(duplicate); err != nil {

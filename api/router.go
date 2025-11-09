@@ -32,14 +32,15 @@ func SetupRouter(store *persistence.Store, fileStore *storage.FileStore) *chi.Mu
 	r.Use(middleware.RequestID)
 	r.Use(corsMiddleware)
 
-	dataSourceHandler := data.NewDataSourceHandler(store, fileStore)
-	r.Route("/api/datasources", func(r chi.Router) {
-		r.Post("/", dataSourceHandler.UploadCSV)
-		r.Get("/", dataSourceHandler.ListDataSources)
-		r.Get("/{id}", dataSourceHandler.GetDataSource)
-		r.Get("/{id}/data", dataSourceHandler.QueryData)
-		r.Delete("/{id}", dataSourceHandler.DeleteDataSource)
-	})
+	// Paths have been removed for clarity - datasources are assigned directly to layers
+	// dataSourceHandler := data.NewDataSourceHandler(store, fileStore)
+	// r.Route("/api/datasources", func(r chi.Router) {
+	// 	r.Post("/", dataSourceHandler.UploadCSV)
+	// 	r.Get("/", dataSourceHandler.ListDataSources)
+	// 	r.Get("/{id}", dataSourceHandler.GetDataSource)
+	// 	r.Get("/{id}/data", dataSourceHandler.QueryData)
+	// 	r.Delete("/{id}", dataSourceHandler.DeleteDataSource)
+	// })
 
 	projectHandler := data.NewProjectHandler(store, fileStore)
 	r.Route("/api/projects", func(r chi.Router) {
@@ -59,7 +60,6 @@ func SetupRouter(store *persistence.Store, fileStore *storage.FileStore) *chi.Mu
 		r.Put("/{id}/color", layerHandler.UpdateColor)
 		r.Put("/{id}/visibility", layerHandler.UpdateVisibility)
 		r.Post("/{id}/duplicate", layerHandler.DuplicateLayer)
-		r.Put("/{id}/display-window", layerHandler.UpdateDisplayWindow)
 		r.Get("/{id}/data", layerHandler.GetLayerData)
 	})
 

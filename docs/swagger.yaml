@@ -83,10 +83,6 @@ definitions:
         type: integer
       data_source_id:
         type: integer
-      display_end_time:
-        type: string
-      display_start_time:
-        type: string
       is_visible:
         type: boolean
       name:
@@ -95,11 +91,6 @@ definitions:
         type: integer
       z_index:
         type: integer
-    type: object
-  data.LoadCSVRequest:
-    properties:
-      csv_filename:
-        type: string
     type: object
   data.ProjectListResponse:
     properties:
@@ -122,13 +113,6 @@ definitions:
   data.UpdateColorRequest:
     properties:
       color:
-        type: string
-    type: object
-  data.UpdateDisplayWindowRequest:
-    properties:
-      end_time:
-        type: string
-      start_time:
         type: string
     type: object
   data.UpdateVisibilityRequest:
@@ -448,45 +432,6 @@ paths:
       summary: Get layer time series data
       tags:
       - layers
-  /api/layers/{id}/display-window:
-    put:
-      consumes:
-      - application/json
-      description: Update the display time window (start and end times) for a layer
-      parameters:
-      - description: Layer ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      - description: Display window times
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/data.UpdateDisplayWindowRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/data.LayerResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/data.ErrorResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/data.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/data.ErrorResponse'
-      summary: Update layer display time window
-      tags:
-      - layers
   /api/layers/{id}/duplicate:
     post:
       consumes:
@@ -529,21 +474,24 @@ paths:
   /api/layers/{id}/load-csv:
     post:
       consumes:
-      - application/json
-      description: Load data from an existing CSV file into the layer (creates a new
-        datasource)
+      - multipart/form-data
+      description: Upload and load a CSV file into the layer (creates a new datasource).
+        The CSV must have 'timestamp' and 'value' columns.
       parameters:
       - description: Layer ID
         in: path
         name: id
         required: true
         type: integer
-      - description: CSV filename
-        in: body
-        name: request
+      - description: CSV file to upload
+        in: formData
+        name: file
         required: true
-        schema:
-          $ref: '#/definitions/data.LoadCSVRequest'
+        type: file
+      - description: Name for the datasource (defaults to filename)
+        in: formData
+        name: name
+        type: string
       produces:
       - application/json
       responses:
