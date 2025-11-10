@@ -67,28 +67,6 @@ func createTables(db *sql.DB) error {
         FOREIGN KEY (data_source_id) REFERENCES data_sources(data_source_id) ON DELETE CASCADE
     );
 
-    CREATE TABLE IF NOT EXISTS tools (
-        tool_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        fx_name TEXT NOT NULL,
-        timeout_s INTEGER NOT NULL DEFAULT 30,
-        is_enabled BOOLEAN NOT NULL DEFAULT 1,
-        when_last_call TIMESTAMP,
-        num_calls INTEGER NOT NULL DEFAULT 0,
-        max_calls INTEGER,
-        num_call_reset INTEGER,
-        UNIQUE(fx_name)
-    );
-
-    CREATE TABLE IF NOT EXISTS tool_auth_props (
-        tool_id INTEGER PRIMARY KEY,
-        hashed_api_key TEXT,
-        hashed_username TEXT,
-        hashed_password TEXT,
-        FOREIGN KEY (tool_id) REFERENCES tools(tool_id) ON DELETE CASCADE
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_tools_enabled ON tools(is_enabled);
     CREATE INDEX IF NOT EXISTS idx_data_sources_type ON data_sources(data_source_type);
     CREATE INDEX IF NOT EXISTS idx_data_sources_project ON data_sources(project_id);
     CREATE INDEX IF NOT EXISTS idx_data_layers_project ON data_layers(project_id);
@@ -103,4 +81,3 @@ func createTables(db *sql.DB) error {
 func (s *Store) Close() error {
 	return s.db.Close()
 }
-
