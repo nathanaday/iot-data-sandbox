@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/nathanaday/iot-data-sandbox/api/handlers"
 	"github.com/nathanaday/iot-data-sandbox/internal/models"
 	"github.com/nathanaday/iot-data-sandbox/internal/persistence"
 	"github.com/nathanaday/iot-data-sandbox/internal/services"
@@ -37,7 +38,7 @@ func NewDataSourceHandler(store *persistence.Store, fileStore *storage.FileStore
 func (h *DataSourceHandler) ListDataSources(w http.ResponseWriter, r *http.Request) {
 	schemas, err := h.store.FindAll()
 	if err != nil {
-		respondError(w, fmt.Sprintf("Failed to load datasources: %v", err), http.StatusInternalServerError)
+		handlers.RespondError(w, fmt.Sprintf("Failed to load datasources: %v", err), http.StatusInternalServerError)
 		return
 	}
 
@@ -56,7 +57,7 @@ func (h *DataSourceHandler) ListDataSources(w http.ResponseWriter, r *http.Reque
 		})
 	}
 
-	respondJSON(w, DataSourceListResponse{DataSources: metadata}, http.StatusOK)
+	handlers.RespondJSON(w, DataSourceListResponse{DataSources: metadata}, http.StatusOK)
 }
 
 // GetDataSource godoc
@@ -72,13 +73,13 @@ func (h *DataSourceHandler) ListDataSources(w http.ResponseWriter, r *http.Reque
 func (h *DataSourceHandler) GetDataSource(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		respondError(w, "Invalid datasource ID", http.StatusBadRequest)
+		handlers.RespondError(w, "Invalid datasource ID", http.StatusBadRequest)
 		return
 	}
 
 	schema, err := h.store.FindByID(id)
 	if err != nil {
-		respondError(w, "Datasource not found", http.StatusNotFound)
+		handlers.RespondError(w, "Datasource not found", http.StatusNotFound)
 		return
 	}
 
@@ -94,7 +95,7 @@ func (h *DataSourceHandler) GetDataSource(w http.ResponseWriter, r *http.Request
 		WhenCreated:  schema.WhenCreated,
 	}
 
-	respondJSON(w, metadata, http.StatusOK)
+	handlers.RespondJSON(w, metadata, http.StatusOK)
 }
 
 // DeleteDataSource godoc
@@ -110,23 +111,23 @@ func (h *DataSourceHandler) GetDataSource(w http.ResponseWriter, r *http.Request
 func (h *DataSourceHandler) DeleteDataSource(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		respondError(w, "Invalid datasource ID", http.StatusBadRequest)
+		handlers.RespondError(w, "Invalid datasource ID", http.StatusBadRequest)
 		return
 	}
 
 	schema, err := h.store.FindByID(id)
 	if err != nil {
-		respondError(w, "Datasource not found", http.StatusNotFound)
+		handlers.RespondError(w, "Datasource not found", http.StatusNotFound)
 		return
 	}
 
 	if err := h.fileStore.DeleteFile(schema.DataSourcePath); err != nil {
-		respondError(w, fmt.Sprintf("Failed to delete file: %v", err), http.StatusInternalServerError)
+		handlers.RespondError(w, fmt.Sprintf("Failed to delete file: %v", err), http.StatusInternalServerError)
 		return
 	}
 
 	if err := h.store.Delete(id); err != nil {
-		respondError(w, fmt.Sprintf("Failed to delete datasource: %v", err), http.StatusInternalServerError)
+		handlers.RespondError(w, fmt.Sprintf("Failed to delete datasource: %v", err), http.StatusInternalServerError)
 		return
 	}
 

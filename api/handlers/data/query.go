@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/nathanaday/iot-data-sandbox/api/handlers"
 )
 
 // QueryData godoc
@@ -24,14 +25,14 @@ import (
 func (h *DataSourceHandler) QueryData(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		respondError(w, "Invalid datasource ID", http.StatusBadRequest)
+		handlers.RespondError(w, "Invalid datasource ID", http.StatusBadRequest)
 		return
 	}
 
 	// Load datasource with data using the service layer
 	ds, err := h.datasourceService.LoadByID(id)
 	if err != nil {
-		respondError(w, "Datasource not found", http.StatusNotFound)
+		handlers.RespondError(w, "Datasource not found", http.StatusNotFound)
 		return
 	}
 
@@ -40,7 +41,7 @@ func (h *DataSourceHandler) QueryData(w http.ResponseWriter, r *http.Request) {
 	if startStr := r.URL.Query().Get("start_time"); startStr != "" {
 		t, err := time.Parse(time.RFC3339, startStr)
 		if err != nil {
-			respondError(w, "Invalid start_time format, use RFC3339", http.StatusBadRequest)
+			handlers.RespondError(w, "Invalid start_time format, use RFC3339", http.StatusBadRequest)
 			return
 		}
 		startTime = &t
@@ -49,7 +50,7 @@ func (h *DataSourceHandler) QueryData(w http.ResponseWriter, r *http.Request) {
 	if endStr := r.URL.Query().Get("end_time"); endStr != "" {
 		t, err := time.Parse(time.RFC3339, endStr)
 		if err != nil {
-			respondError(w, "Invalid end_time format, use RFC3339", http.StatusBadRequest)
+			handlers.RespondError(w, "Invalid end_time format, use RFC3339", http.StatusBadRequest)
 			return
 		}
 		endTime = &t
@@ -89,5 +90,5 @@ func (h *DataSourceHandler) QueryData(w http.ResponseWriter, r *http.Request) {
 		response.EndTime = actualEnd
 	}
 
-	respondJSON(w, response, http.StatusOK)
+	handlers.RespondJSON(w, response, http.StatusOK)
 }

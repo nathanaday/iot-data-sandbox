@@ -1,8 +1,6 @@
 package data
 
 import (
-	"encoding/json"
-	"net/http"
 	"time"
 )
 
@@ -112,18 +110,4 @@ type PreviewDataResponse struct {
 	EndTime    *time.Time `json:"end_time,omitempty"`
 	TimeLabel  string     `json:"time_label"`
 	ValueLabel string     `json:"value_label"`
-}
-
-// Helper functions
-
-func respondJSON(w http.ResponseWriter, data interface{}, status int) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(data)
-}
-
-func respondError(w http.ResponseWriter, message string, status int) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(ErrorResponse{Error: message})
 }

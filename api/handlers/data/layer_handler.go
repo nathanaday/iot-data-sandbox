@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/nathanaday/iot-data-sandbox/api/handlers"
 	"github.com/nathanaday/iot-data-sandbox/internal/persistence"
 	"github.com/nathanaday/iot-data-sandbox/internal/services"
 	"github.com/nathanaday/iot-data-sandbox/internal/storage"
@@ -45,18 +46,18 @@ func NewLayerHandler(store *persistence.Store, fileStore *storage.FileStore) *La
 func (h *LayerHandler) GetLayer(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		respondError(w, "Invalid layer ID", http.StatusBadRequest)
+		handlers.RespondError(w, "Invalid layer ID", http.StatusBadRequest)
 		return
 	}
 
 	layer, err := h.dataLayerService.LoadByID(id)
 	if err != nil {
-		respondError(w, "Layer not found", http.StatusNotFound)
+		handlers.RespondError(w, "Layer not found", http.StatusNotFound)
 		return
 	}
 
 	response := modelToLayerResponse(layer)
-	respondJSON(w, response, http.StatusOK)
+	handlers.RespondJSON(w, response, http.StatusOK)
 }
 
 // DeleteLayer godoc
@@ -72,12 +73,12 @@ func (h *LayerHandler) GetLayer(w http.ResponseWriter, r *http.Request) {
 func (h *LayerHandler) DeleteLayer(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		respondError(w, "Invalid layer ID", http.StatusBadRequest)
+		handlers.RespondError(w, "Invalid layer ID", http.StatusBadRequest)
 		return
 	}
 
 	if err := h.dataLayerService.Delete(id); err != nil {
-		respondError(w, fmt.Sprintf("Failed to delete layer: %v", err), http.StatusInternalServerError)
+		handlers.RespondError(w, fmt.Sprintf("Failed to delete layer: %v", err), http.StatusInternalServerError)
 		return
 	}
 
@@ -101,27 +102,27 @@ func (h *LayerHandler) DeleteLayer(w http.ResponseWriter, r *http.Request) {
 func (h *LayerHandler) LoadCSV(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		respondError(w, "Invalid layer ID", http.StatusBadRequest)
+		handlers.RespondError(w, "Invalid layer ID", http.StatusBadRequest)
 		return
 	}
 
 	// Parse multipart form
 	if err := r.ParseMultipartForm(10 << 20); err != nil { // 10MB max
-		respondError(w, "Failed to parse multipart form", http.StatusBadRequest)
+		handlers.RespondError(w, "Failed to parse multipart form", http.StatusBadRequest)
 		return
 	}
 
 	// Get the uploaded file
 	file, header, err := r.FormFile("file")
 	if err != nil {
-		respondError(w, "No file provided", http.StatusBadRequest)
+		handlers.RespondError(w, "No file provided", http.StatusBadRequest)
 		return
 	}
 	defer file.Close()
 
 	// Validate file extension
 	if !strings.HasSuffix(strings.ToLower(header.Filename), ".csv") {
-		respondError(w, "File must be a CSV", http.StatusBadRequest)
+		handlers.RespondError(w, "File must be a CSV", http.StatusBadRequest)
 		return
 	}
 
@@ -134,7 +135,7 @@ func (h *LayerHandler) LoadCSV(w http.ResponseWriter, r *http.Request) {
 	// Save the file
 	savedFilename, err := h.fileStore.SaveFile(header.Filename, file, 10<<20)
 	if err != nil {
-		respondError(w, fmt.Sprintf("Failed to save file: %v", err), http.StatusInternalServerError)
+		handlers.RespondError(w, fmt.Sprintf("Failed to save file: %v", err), http.StatusInternalServerError)
 		return
 	}
 
@@ -142,19 +143,19 @@ func (h *LayerHandler) LoadCSV(w http.ResponseWriter, r *http.Request) {
 	if err := h.dataLayerService.LoadFromCSV(id, savedFilename); err != nil {
 		// Clean up the saved file on error
 		h.fileStore.DeleteFile(savedFilename)
-		respondError(w, fmt.Sprintf("Failed to load CSV: %v", err), http.StatusInternalServerError)
+		handlers.RespondError(w, fmt.Sprintf("Failed to load CSV: %v", err), http.StatusInternalServerError)
 		return
 	}
 
 	// Return updated layer
 	layer, err := h.dataLayerService.LoadByID(id)
 	if err != nil {
-		respondError(w, "Failed to load updated layer", http.StatusInternalServerError)
+		handlers.RespondError(w, "Failed to load updated layer", http.StatusInternalServerError)
 		return
 	}
 
 	response := modelToLayerResponse(layer)
-	respondJSON(w, response, http.StatusOK)
+	handlers.RespondJSON(w, response, http.StatusOK)
 }
 
 // UpdateColor godoc
@@ -173,34 +174,34 @@ func (h *LayerHandler) LoadCSV(w http.ResponseWriter, r *http.Request) {
 func (h *LayerHandler) UpdateColor(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		respondError(w, "Invalid layer ID", http.StatusBadRequest)
+		handlers.RespondError(w, "Invalid layer ID", http.StatusBadRequest)
 		return
 	}
 
 	var req UpdateColorRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondError(w, "Invalid request body", http.StatusBadRequest)
+		handlers.RespondError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
 	if req.Color == "" {
-		respondError(w, "Color is required", http.StatusBadRequest)
+		handlers.RespondError(w, "Color is required", http.StatusBadRequest)
 		return
 	}
 
 	if err := h.dataLayerService.UpdateColor(id, req.Color); err != nil {
-		respondError(w, fmt.Sprintf("Failed to update color: %v", err), http.StatusInternalServerError)
+		handlers.RespondError(w, fmt.Sprintf("Failed to update color: %v", err), http.StatusInternalServerError)
 		return
 	}
 
 	layer, err := h.dataLayerService.LoadByID(id)
 	if err != nil {
-		respondError(w, "Failed to load updated layer", http.StatusInternalServerError)
+		handlers.RespondError(w, "Failed to load updated layer", http.StatusInternalServerError)
 		return
 	}
 
 	response := modelToLayerResponse(layer)
-	respondJSON(w, response, http.StatusOK)
+	handlers.RespondJSON(w, response, http.StatusOK)
 }
 
 // UpdateVisibility godoc
@@ -219,29 +220,29 @@ func (h *LayerHandler) UpdateColor(w http.ResponseWriter, r *http.Request) {
 func (h *LayerHandler) UpdateVisibility(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		respondError(w, "Invalid layer ID", http.StatusBadRequest)
+		handlers.RespondError(w, "Invalid layer ID", http.StatusBadRequest)
 		return
 	}
 
 	var req UpdateVisibilityRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondError(w, "Invalid request body", http.StatusBadRequest)
+		handlers.RespondError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
 	if err := h.dataLayerService.SetVisibility(id, req.IsVisible); err != nil {
-		respondError(w, fmt.Sprintf("Failed to update visibility: %v", err), http.StatusInternalServerError)
+		handlers.RespondError(w, fmt.Sprintf("Failed to update visibility: %v", err), http.StatusInternalServerError)
 		return
 	}
 
 	layer, err := h.dataLayerService.LoadByID(id)
 	if err != nil {
-		respondError(w, "Failed to load updated layer", http.StatusInternalServerError)
+		handlers.RespondError(w, "Failed to load updated layer", http.StatusInternalServerError)
 		return
 	}
 
 	response := modelToLayerResponse(layer)
-	respondJSON(w, response, http.StatusOK)
+	handlers.RespondJSON(w, response, http.StatusOK)
 }
 
 // DuplicateLayer godoc
@@ -260,29 +261,29 @@ func (h *LayerHandler) UpdateVisibility(w http.ResponseWriter, r *http.Request) 
 func (h *LayerHandler) DuplicateLayer(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		respondError(w, "Invalid layer ID", http.StatusBadRequest)
+		handlers.RespondError(w, "Invalid layer ID", http.StatusBadRequest)
 		return
 	}
 
 	var req DuplicateLayerRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondError(w, "Invalid request body", http.StatusBadRequest)
+		handlers.RespondError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
 	if req.NewName == "" {
-		respondError(w, "New name is required", http.StatusBadRequest)
+		handlers.RespondError(w, "New name is required", http.StatusBadRequest)
 		return
 	}
 
 	newLayer, err := h.dataLayerService.Duplicate(id, req.NewName)
 	if err != nil {
-		respondError(w, fmt.Sprintf("Failed to duplicate layer: %v", err), http.StatusInternalServerError)
+		handlers.RespondError(w, fmt.Sprintf("Failed to duplicate layer: %v", err), http.StatusInternalServerError)
 		return
 	}
 
 	response := modelToLayerResponse(newLayer)
-	respondJSON(w, response, http.StatusCreated)
+	handlers.RespondJSON(w, response, http.StatusCreated)
 }
 
 // GetLayerDataMetadata godoc
@@ -299,18 +300,18 @@ func (h *LayerHandler) DuplicateLayer(w http.ResponseWriter, r *http.Request) {
 func (h *LayerHandler) GetLayerDataMetadata(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		respondError(w, "Invalid layer ID", http.StatusBadRequest)
+		handlers.RespondError(w, "Invalid layer ID", http.StatusBadRequest)
 		return
 	}
 
 	layer, dataSourceSchema, err := h.store.LoadLayerWithDataSource(id)
 	if err != nil {
-		respondError(w, "Layer not found", http.StatusNotFound)
+		handlers.RespondError(w, "Layer not found", http.StatusNotFound)
 		return
 	}
 
 	if layer.DataSourceId == nil || dataSourceSchema == nil {
-		respondError(w, "Layer has no associated data source", http.StatusNotFound)
+		handlers.RespondError(w, "Layer has no associated data source", http.StatusNotFound)
 		return
 	}
 
@@ -326,7 +327,7 @@ func (h *LayerHandler) GetLayerDataMetadata(w http.ResponseWriter, r *http.Reque
 		WhenCreated:  dataSourceSchema.WhenCreated,
 	}
 
-	respondJSON(w, metadata, http.StatusOK)
+	handlers.RespondJSON(w, metadata, http.StatusOK)
 }
 
 // GetLayerData godoc
@@ -345,18 +346,18 @@ func (h *LayerHandler) GetLayerDataMetadata(w http.ResponseWriter, r *http.Reque
 func (h *LayerHandler) GetLayerData(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		respondError(w, "Invalid layer ID", http.StatusBadRequest)
+		handlers.RespondError(w, "Invalid layer ID", http.StatusBadRequest)
 		return
 	}
 
 	layer, err := h.dataLayerService.LoadWithDataSource(id)
 	if err != nil {
-		respondError(w, "Layer not found", http.StatusNotFound)
+		handlers.RespondError(w, "Layer not found", http.StatusNotFound)
 		return
 	}
 
 	if layer.DataSource == nil {
-		respondJSON(w, DataQueryResponse{
+		handlers.RespondJSON(w, DataQueryResponse{
 			Data:     []DataPoint{},
 			RowCount: 0,
 		}, http.StatusOK)
@@ -368,7 +369,7 @@ func (h *LayerHandler) GetLayerData(w http.ResponseWriter, r *http.Request) {
 	if startStr := r.URL.Query().Get("start_time"); startStr != "" {
 		t, err := time.Parse(time.RFC3339, startStr)
 		if err != nil {
-			respondError(w, "Invalid start_time format, use RFC3339", http.StatusBadRequest)
+			handlers.RespondError(w, "Invalid start_time format, use RFC3339", http.StatusBadRequest)
 			return
 		}
 		startTime = &t
@@ -377,7 +378,7 @@ func (h *LayerHandler) GetLayerData(w http.ResponseWriter, r *http.Request) {
 	if endStr := r.URL.Query().Get("end_time"); endStr != "" {
 		t, err := time.Parse(time.RFC3339, endStr)
 		if err != nil {
-			respondError(w, "Invalid end_time format, use RFC3339", http.StatusBadRequest)
+			handlers.RespondError(w, "Invalid end_time format, use RFC3339", http.StatusBadRequest)
 			return
 		}
 		endTime = &t
@@ -417,5 +418,5 @@ func (h *LayerHandler) GetLayerData(w http.ResponseWriter, r *http.Request) {
 		response.EndTime = actualEnd
 	}
 
-	respondJSON(w, response, http.StatusOK)
+	handlers.RespondJSON(w, response, http.StatusOK)
 }

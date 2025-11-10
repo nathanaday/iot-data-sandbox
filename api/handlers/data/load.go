@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/nathanaday/iot-data-sandbox/api/handlers"
 	"github.com/nathanaday/iot-data-sandbox/internal/storage"
 )
 
@@ -23,19 +24,19 @@ import (
 // @Router /api/datasources [post]
 func (h *DataSourceHandler) UploadCSV(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseMultipartForm(storage.MaxFileSize); err != nil {
-		respondError(w, "Failed to parse multipart form", http.StatusBadRequest)
+		handlers.RespondError(w, "Failed to parse multipart form", http.StatusBadRequest)
 		return
 	}
 
 	file, header, err := r.FormFile("file")
 	if err != nil {
-		respondError(w, "No file provided", http.StatusBadRequest)
+		handlers.RespondError(w, "No file provided", http.StatusBadRequest)
 		return
 	}
 	defer file.Close()
 
 	if !strings.HasSuffix(strings.ToLower(header.Filename), ".csv") {
-		respondError(w, "File must be a CSV", http.StatusBadRequest)
+		handlers.RespondError(w, "File must be a CSV", http.StatusBadRequest)
 		return
 	}
 
@@ -46,7 +47,7 @@ func (h *DataSourceHandler) UploadCSV(w http.ResponseWriter, r *http.Request) {
 
 	savedFilename, err := h.fileStore.SaveFile(header.Filename, file, storage.MaxFileSize)
 	if err != nil {
-		respondError(w, fmt.Sprintf("Failed to save file: %v", err), http.StatusInternalServerError)
+		handlers.RespondError(w, fmt.Sprintf("Failed to save file: %v", err), http.StatusInternalServerError)
 		return
 	}
 
@@ -55,7 +56,7 @@ func (h *DataSourceHandler) UploadCSV(w http.ResponseWriter, r *http.Request) {
 	dataSource, err := h.datasourceService.CreateFromCSV(name, savedFilename)
 	if err != nil {
 		h.fileStore.DeleteFile(savedFilename)
-		respondError(w, fmt.Sprintf("Failed to create datasource: %v", err), http.StatusBadRequest)
+		handlers.RespondError(w, fmt.Sprintf("Failed to create datasource: %v", err), http.StatusBadRequest)
 		return
 	}
 
@@ -72,5 +73,5 @@ func (h *DataSourceHandler) UploadCSV(w http.ResponseWriter, r *http.Request) {
 		WhenCreated:  dataSource.WhenCreated,
 	}
 
-	respondJSON(w, response, http.StatusCreated)
+	handlers.RespondJSON(w, response, http.StatusCreated)
 }

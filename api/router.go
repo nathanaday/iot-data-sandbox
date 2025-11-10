@@ -7,6 +7,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/nathanaday/iot-data-sandbox/api/handlers/data"
+	"github.com/nathanaday/iot-data-sandbox/api/handlers/tools"
 	"github.com/nathanaday/iot-data-sandbox/internal/persistence"
 	"github.com/nathanaday/iot-data-sandbox/internal/storage"
 	httpSwagger "github.com/swaggo/http-swagger"
@@ -67,6 +68,11 @@ func SetupRouter(store *persistence.Store, fileStore *storage.FileStore) *chi.Mu
 	uiHandler := data.NewUIHandler(store, fileStore)
 	r.Route("/api/ui", func(r chi.Router) {
 		r.Post("/preview_data", uiHandler.PreviewCSV)
+	})
+
+	toolHandler := tools.NewToolHandler(store)
+	r.Route("/api/tools", func(r chi.Router) {
+		r.Get("/", toolHandler.GetAllToolManifests)
 	})
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {

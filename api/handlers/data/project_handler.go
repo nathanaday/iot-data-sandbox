@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/nathanaday/iot-data-sandbox/api/handlers"
 	"github.com/nathanaday/iot-data-sandbox/internal/models"
 	"github.com/nathanaday/iot-data-sandbox/internal/persistence"
 	"github.com/nathanaday/iot-data-sandbox/internal/services"
@@ -45,18 +46,18 @@ func NewProjectHandler(store *persistence.Store, fileStore *storage.FileStore) *
 func (h *ProjectHandler) CreateProject(w http.ResponseWriter, r *http.Request) {
 	var req CreateProjectRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondError(w, "Invalid request body", http.StatusBadRequest)
+		handlers.RespondError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
 	if req.Name == "" {
-		respondError(w, "Project name is required", http.StatusBadRequest)
+		handlers.RespondError(w, "Project name is required", http.StatusBadRequest)
 		return
 	}
 
 	project, err := h.projectService.Create(req.Name)
 	if err != nil {
-		respondError(w, fmt.Sprintf("Failed to create project: %v", err), http.StatusInternalServerError)
+		handlers.RespondError(w, fmt.Sprintf("Failed to create project: %v", err), http.StatusInternalServerError)
 		return
 	}
 
@@ -67,7 +68,7 @@ func (h *ProjectHandler) CreateProject(w http.ResponseWriter, r *http.Request) {
 		LayerCount:  0,
 	}
 
-	respondJSON(w, response, http.StatusCreated)
+	handlers.RespondJSON(w, response, http.StatusCreated)
 }
 
 // GetProject godoc
@@ -83,13 +84,13 @@ func (h *ProjectHandler) CreateProject(w http.ResponseWriter, r *http.Request) {
 func (h *ProjectHandler) GetProject(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		respondError(w, "Invalid project ID", http.StatusBadRequest)
+		handlers.RespondError(w, "Invalid project ID", http.StatusBadRequest)
 		return
 	}
 
 	project, err := h.projectService.LoadByID(id)
 	if err != nil {
-		respondError(w, "Project not found", http.StatusNotFound)
+		handlers.RespondError(w, "Project not found", http.StatusNotFound)
 		return
 	}
 
@@ -102,7 +103,7 @@ func (h *ProjectHandler) GetProject(w http.ResponseWriter, r *http.Request) {
 		LayerCount:  layerCount,
 	}
 
-	respondJSON(w, response, http.StatusOK)
+	handlers.RespondJSON(w, response, http.StatusOK)
 }
 
 // ListProjects godoc
@@ -116,7 +117,7 @@ func (h *ProjectHandler) GetProject(w http.ResponseWriter, r *http.Request) {
 func (h *ProjectHandler) ListProjects(w http.ResponseWriter, r *http.Request) {
 	projects, err := h.projectService.LoadAll()
 	if err != nil {
-		respondError(w, fmt.Sprintf("Failed to load projects: %v", err), http.StatusInternalServerError)
+		handlers.RespondError(w, fmt.Sprintf("Failed to load projects: %v", err), http.StatusInternalServerError)
 		return
 	}
 
@@ -132,7 +133,7 @@ func (h *ProjectHandler) ListProjects(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	respondJSON(w, ProjectListResponse{Projects: responses}, http.StatusOK)
+	handlers.RespondJSON(w, ProjectListResponse{Projects: responses}, http.StatusOK)
 }
 
 // DeleteProject godoc
@@ -148,12 +149,12 @@ func (h *ProjectHandler) ListProjects(w http.ResponseWriter, r *http.Request) {
 func (h *ProjectHandler) DeleteProject(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		respondError(w, "Invalid project ID", http.StatusBadRequest)
+		handlers.RespondError(w, "Invalid project ID", http.StatusBadRequest)
 		return
 	}
 
 	if err := h.projectService.Delete(id); err != nil {
-		respondError(w, fmt.Sprintf("Failed to delete project: %v", err), http.StatusInternalServerError)
+		handlers.RespondError(w, fmt.Sprintf("Failed to delete project: %v", err), http.StatusInternalServerError)
 		return
 	}
 
@@ -176,29 +177,29 @@ func (h *ProjectHandler) DeleteProject(w http.ResponseWriter, r *http.Request) {
 func (h *ProjectHandler) AddLayer(w http.ResponseWriter, r *http.Request) {
 	projectId, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		respondError(w, "Invalid project ID", http.StatusBadRequest)
+		handlers.RespondError(w, "Invalid project ID", http.StatusBadRequest)
 		return
 	}
 
 	var req CreateLayerRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondError(w, "Invalid request body", http.StatusBadRequest)
+		handlers.RespondError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
 	if req.Name == "" {
-		respondError(w, "Layer name is required", http.StatusBadRequest)
+		handlers.RespondError(w, "Layer name is required", http.StatusBadRequest)
 		return
 	}
 
 	layer, err := h.projectService.AddLayer(projectId, req.Name)
 	if err != nil {
-		respondError(w, fmt.Sprintf("Failed to add layer: %v", err), http.StatusInternalServerError)
+		handlers.RespondError(w, fmt.Sprintf("Failed to add layer: %v", err), http.StatusInternalServerError)
 		return
 	}
 
 	response := modelToLayerResponse(layer)
-	respondJSON(w, response, http.StatusCreated)
+	handlers.RespondJSON(w, response, http.StatusCreated)
 }
 
 // GetProjectLayers godoc
@@ -215,13 +216,13 @@ func (h *ProjectHandler) AddLayer(w http.ResponseWriter, r *http.Request) {
 func (h *ProjectHandler) GetProjectLayers(w http.ResponseWriter, r *http.Request) {
 	projectId, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		respondError(w, "Invalid project ID", http.StatusBadRequest)
+		handlers.RespondError(w, "Invalid project ID", http.StatusBadRequest)
 		return
 	}
 
 	project, err := h.projectService.LoadWithLayers(projectId)
 	if err != nil {
-		respondError(w, "Project not found", http.StatusNotFound)
+		handlers.RespondError(w, "Project not found", http.StatusNotFound)
 		return
 	}
 
@@ -230,7 +231,7 @@ func (h *ProjectHandler) GetProjectLayers(w http.ResponseWriter, r *http.Request
 		responses = append(responses, modelToLayerResponse(layer))
 	}
 
-	respondJSON(w, LayerListResponse{Layers: responses}, http.StatusOK)
+	handlers.RespondJSON(w, LayerListResponse{Layers: responses}, http.StatusOK)
 }
 
 // Helper function to convert model to response
