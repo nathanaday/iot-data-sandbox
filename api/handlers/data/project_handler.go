@@ -11,23 +11,20 @@ import (
 	"github.com/nathanaday/iot-data-sandbox/internal/models"
 	"github.com/nathanaday/iot-data-sandbox/internal/persistence"
 	"github.com/nathanaday/iot-data-sandbox/internal/services"
-	"github.com/nathanaday/iot-data-sandbox/internal/storage"
 )
 
 type ProjectHandler struct {
 	store          *persistence.Store
-	fileStore      *storage.FileStore
 	projectService *services.ProjectService
 }
 
-func NewProjectHandler(store *persistence.Store, fileStore *storage.FileStore) *ProjectHandler {
-	dataSourceService := services.NewDataSourceService(store, fileStore)
-	dataLayerService := services.NewDataLayerService(store, dataSourceService)
+func NewProjectHandler(store *persistence.Store) *ProjectHandler {
+	dataframeService := services.NewDataFrameService(store)
+	dataLayerService := services.NewDataLayerService(store, dataframeService)
 	projectService := services.NewProjectService(store, dataLayerService)
 
 	return &ProjectHandler{
 		store:          store,
-		fileStore:      fileStore,
 		projectService: projectService,
 	}
 }
@@ -237,12 +234,12 @@ func (h *ProjectHandler) GetProjectLayers(w http.ResponseWriter, r *http.Request
 // Helper function to convert model to response
 func modelToLayerResponse(layer *models.DataLayer) LayerResponse {
 	return LayerResponse{
-		DataLayerId:  layer.DataLayerId,
-		ProjectId:    layer.ProjectId,
-		DataSourceId: layer.DataSourceId,
-		Name:         layer.Name,
-		Color:        layer.Color,
-		ZIndex:       layer.ZIndex,
-		IsVisible:    layer.IsVisible,
+		DataLayerId: layer.DataLayerId,
+		ProjectId:   layer.ProjectId,
+		DataFrameId: layer.DataFrameId,
+		Name:        layer.Name,
+		Color:       layer.Color,
+		ZIndex:      layer.ZIndex,
+		IsVisible:   layer.IsVisible,
 	}
 }

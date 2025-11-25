@@ -7,15 +7,32 @@ import (
 // Response types for API endpoints
 
 type UploadResponse struct {
-	DataSourceId int64      `json:"data_source_id"`
-	Name         string     `json:"name"`
-	RowCount     int        `json:"row_count"`
-	StartTime    *time.Time `json:"start_time,omitempty"`
-	EndTime      *time.Time `json:"end_time,omitempty"`
-	TimeLabel    string     `json:"time_label"`
-	ValueLabel   string     `json:"value_label"`
-	WhenCreated  time.Time  `json:"when_created"`
+	DataFrameId int64      `json:"dataframe_id"`
+	Name        string     `json:"name"`
+	RowCount    int        `json:"row_count"`
+	StartTime   *time.Time `json:"start_time,omitempty"`
+	EndTime     *time.Time `json:"end_time,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
 }
+
+// DataFrame response types
+
+type DataFrameListResponse struct {
+	DataFrames []DataFrameMetadata `json:"dataframes"`
+}
+
+type DataFrameMetadata struct {
+	DataFrameId int64      `json:"dataframe_id"`
+	ProjectId   int64      `json:"project_id"`
+	Name        string     `json:"name"`
+	Description string     `json:"description"`
+	RowCount    int        `json:"row_count"`
+	StartTime   *time.Time `json:"start_time,omitempty"`
+	EndTime     *time.Time `json:"end_time,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+}
+
+// Legacy DataSource types (deprecated - kept for backward compatibility)
 
 type DataSourceListResponse struct {
 	DataSources []DataSourceMetadata `json:"data_sources"`
@@ -69,13 +86,13 @@ type CreateProjectRequest struct {
 // Layer response types
 
 type LayerResponse struct {
-	DataLayerId  int64  `json:"data_layer_id"`
-	ProjectId    int64  `json:"project_id"`
-	DataSourceId *int64 `json:"data_source_id,omitempty"`
-	Name         string `json:"name"`
-	Color        string `json:"color"`
-	ZIndex       int    `json:"z_index"`
-	IsVisible    bool   `json:"is_visible"`
+	DataLayerId int64  `json:"data_layer_id"`
+	ProjectId   int64  `json:"project_id"`
+	DataFrameId *int64 `json:"dataframe_id,omitempty"`
+	Name        string `json:"name"`
+	Color       string `json:"color"`
+	ZIndex      int    `json:"z_index"`
+	IsVisible   bool   `json:"is_visible"`
 }
 
 type LayerListResponse struct {

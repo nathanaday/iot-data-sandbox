@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"io"
 
 	"github.com/nathanaday/iot-data-sandbox/internal/models"
 	"github.com/nathanaday/iot-data-sandbox/internal/persistence"
@@ -9,15 +10,15 @@ import (
 
 // DataLayerService provides business operations for DataLayer entities
 type DataLayerService struct {
-	store             *persistence.Store
-	dataSourceService *DataSourceService
+	store            *persistence.Store
+	dataframeService *DataFrameService
 }
 
 // NewDataLayerService creates a new DataLayerService
-func NewDataLayerService(store *persistence.Store, dataSourceService *DataSourceService) *DataLayerService {
+func NewDataLayerService(store *persistence.Store, dataframeService *DataFrameService) *DataLayerService {
 	return &DataLayerService{
-		store:             store,
-		dataSourceService: dataSourceService,
+		store:            store,
+		dataframeService: dataframeService,
 	}
 }
 
@@ -47,44 +48,45 @@ func (s *DataLayerService) LoadByID(id int64) (*models.DataLayer, error) {
 	return layer, nil
 }
 
-// LoadWithDataSource retrieves a DataLayer with its associated DataSource loaded
-func (s *DataLayerService) LoadWithDataSource(id int64) (*models.DataLayer, error) {
-	layer, dataSourceSchema, err := s.store.LoadLayerWithDataSource(id)
+// LoadWithDataFrame retrieves a DataLayer with its associated DataFrame loaded
+func (s *DataLayerService) LoadWithDataFrame(id int64) (*models.DataLayer, error) {
+	layer, dataframeSchema, err := s.store.LoadLayerWithDataFrame(id)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load layer with datasource: %w", err)
+		return nil, fmt.Errorf("failed to load layer with dataframe: %w", err)
 	}
 
-	// Convert schema to model and load data
-	dataSource := &models.DataSource{}
-	dataSource.FromSchema(dataSourceSchema)
-
-	// Load the actual time series data from CSV
-	filePath := s.dataSourceService.fileStore.GetFilePath(dataSource.DataSourcePath)
-	if err := loadDataFromCSV(dataSource, filePath); err != nil {
-		return nil, fmt.Errorf("failed to load datasource data: %w", err)
+	// If no dataframe is associated, return layer only
+	if dataframeSchema == nil {
+		return layer, nil
 	}
 
-	layer.DataSource = dataSource
+	// Load the DataFrame (metadata + data)
+	dataframe, err := s.dataframeService.LoadByID(dataframeSchema.DataFrameId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load dataframe data: %w", err)
+	}
+
+	layer.DataFrame = dataframe
 	return layer, nil
 }
 
-// LoadFromCSV loads CSV data into a layer by creating a new DataSource
-func (s *DataLayerService) LoadFromCSV(layerId int64, csvFilename string) error {
+// LoadFromCSV loads CSV data into a layer by creating a new DataFrame
+func (s *DataLayerService) LoadFromCSV(layerId int64, csvReader io.Reader) error {
 	layer, err := s.store.LoadLayer(layerId)
 	if err != nil {
 		return fmt.Errorf("failed to load layer: %w", err)
 	}
 
-	// Create datasource from CSV
-	dataSource, err := s.dataSourceService.CreateFromCSV(layer.Name, csvFilename)
+	// Create dataframe from CSV
+	dataframe, err := s.dataframeService.CreateFromCSV(layer.ProjectId, layer.Name, csvReader)
 	if err != nil {
-		return fmt.Errorf("failed to create datasource from CSV: %w", err)
+		return fmt.Errorf("failed to create dataframe from CSV: %w", err)
 	}
 
-	// Associate datasource with layer
-	layer.DataSourceId = &dataSource.DataSourceId
+	// Associate dataframe with layer
+	layer.DataFrameId = &dataframe.DataFrameId
 	if err := s.store.SaveLayer(layer); err != nil {
-		return fmt.Errorf("failed to associate datasource with layer: %w", err)
+		return fmt.Errorf("failed to associate dataframe with layer: %w", err)
 	}
 
 	return nil
@@ -131,12 +133,12 @@ func (s *DataLayerService) Duplicate(layerId int64, newName string) (*models.Dat
 
 	// Create new layer with same properties but different name
 	duplicate := &models.DataLayer{
-		ProjectId:    original.ProjectId,
-		DataSourceId: original.DataSourceId, // shares same datasource
-		Name:         newName,
-		Color:        original.Color,
-		ZIndex:       original.ZIndex + 1, // place above original
-		IsVisible:    original.IsVisible,
+		ProjectId:   original.ProjectId,
+		DataFrameId: original.DataFrameId, // shares same dataframe
+		Name:        newName,
+		Color:       original.Color,
+		ZIndex:      original.ZIndex + 1, // place above original
+		IsVisible:   original.IsVisible,
 	}
 
 	if err := s.store.SaveLayer(duplicate); err != nil {
@@ -177,6 +179,3 @@ func (s *DataLayerService) UpdateZIndex(layerId int64, zIndex int) error {
 
 	return nil
 }
-
-// Note: loadDataFromCSV and parseDataFrameToEntries are defined in datasource.go
-// and shared across the services package

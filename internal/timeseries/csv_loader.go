@@ -2,6 +2,7 @@ package timeseries
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -41,7 +42,12 @@ func LoadAndValidateCSV(filePath string) (*TimeSeriesData, error) {
 	}
 	defer file.Close()
 
-	df := dataframe.ReadCSV(file)
+	return LoadAndValidateCSVFromReader(file)
+}
+
+// LoadAndValidateCSVFromReader loads and validates CSV data from an io.Reader
+func LoadAndValidateCSVFromReader(reader io.Reader) (*TimeSeriesData, error) {
+	df := dataframe.ReadCSV(reader)
 
 	if df.Err != nil {
 		return nil, fmt.Errorf("failed to parse CSV: %w", df.Err)

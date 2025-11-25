@@ -76,3 +76,11 @@ Run from the project root:
 ~/go/bin/swag init -g cmd/server/main.go -o docs
 ```
 
+### CSV Demo Sources
+
+IOT Sensor Telemetry
+https://www.kaggle.com/datasets/garystafford/environmental-sensor-data-132k
+
+NA CO2 Emissions
+https://github.com/rishabh89007/Time_Series_Datasets/blob/main/NA%20Emissions.csv
+

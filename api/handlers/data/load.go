@@ -4,26 +4,29 @@ import (
 	"fmt"
 	"net/http"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/nathanaday/iot-data-sandbox/api/handlers"
-	"github.com/nathanaday/iot-data-sandbox/internal/storage"
 )
 
+const MaxFileSize = 100 * 1024 * 1024 // 100MB
+
 // UploadCSV godoc
-// @Summary Upload a CSV datasource
-// @Description Upload a CSV file containing time series data. The CSV must have 'timestamp' and 'value' columns. Supports various timestamp formats (ISO8601, Unix, Julian Day).
-// @Tags datasources
+// @Summary Upload a CSV dataframe
+// @Description Upload a CSV file containing time series data. The CSV must have 'timestamp' column and one or more value columns. Supports various timestamp formats (ISO8601, Unix, Julian Day). Data is stored directly in SQLite.
+// @Tags dataframes
 // @Accept multipart/form-data
 // @Produce json
 // @Param file formData file true "CSV file to upload"
-// @Param name formData string false "Name for the datasource (defaults to filename)"
+// @Param name formData string false "Name for the dataframe (defaults to filename)"
+// @Param project_id formData int true "Project ID to associate the dataframe with"
 // @Success 201 {object} UploadResponse
 // @Failure 400 {object} ErrorResponse
 // @Failure 500 {object} ErrorResponse
-// @Router /api/datasources [post]
-func (h *DataSourceHandler) UploadCSV(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseMultipartForm(storage.MaxFileSize); err != nil {
+// @Router /api/dataframes [post]
+func (h *DataFrameHandler) UploadCSV(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseMultipartForm(MaxFileSize); err != nil {
 		handlers.RespondError(w, "Failed to parse multipart form", http.StatusBadRequest)
 		return
 	}
@@ -45,32 +48,33 @@ func (h *DataSourceHandler) UploadCSV(w http.ResponseWriter, r *http.Request) {
 		name = strings.TrimSuffix(header.Filename, filepath.Ext(header.Filename))
 	}
 
-	savedFilename, err := h.fileStore.SaveFile(header.Filename, file, storage.MaxFileSize)
-	if err != nil {
-		handlers.RespondError(w, fmt.Sprintf("Failed to save file: %v", err), http.StatusInternalServerError)
+	projectIdStr := r.FormValue("project_id")
+	if projectIdStr == "" {
+		handlers.RespondError(w, "project_id is required", http.StatusBadRequest)
 		return
 	}
 
-	// Use the datasource service to create datasource with in-memory data
-	// It handles CSV validation and loading automatically
-	dataSource, err := h.datasourceService.CreateFromCSV(name, savedFilename)
+	projectId, err := strconv.ParseInt(projectIdStr, 10, 64)
 	if err != nil {
-		h.fileStore.DeleteFile(savedFilename)
-		handlers.RespondError(w, fmt.Sprintf("Failed to create datasource: %v", err), http.StatusBadRequest)
+		handlers.RespondError(w, "Invalid project_id", http.StatusBadRequest)
 		return
 	}
 
-	startTime, endTime := dataSource.GetTimeRange()
+	// Create dataframe directly from CSV (no filesystem storage)
+	// CSV data is parsed and inserted directly into SQLite
+	dataframe, err := h.dataframeService.CreateFromCSV(projectId, name, file)
+	if err != nil {
+		handlers.RespondError(w, fmt.Sprintf("Failed to create dataframe: %v", err), http.StatusBadRequest)
+		return
+	}
 
 	response := UploadResponse{
-		DataSourceId: dataSource.DataSourceId,
-		Name:         dataSource.Name,
-		RowCount:     dataSource.GetRowCount(),
-		StartTime:    startTime,
-		EndTime:      endTime,
-		TimeLabel:    dataSource.TimeLabel,
-		ValueLabel:   dataSource.ValueLabel,
-		WhenCreated:  dataSource.WhenCreated,
+		DataFrameId: dataframe.DataFrameId,
+		Name:        dataframe.Name,
+		RowCount:    dataframe.RowCount,
+		StartTime:   dataframe.StartTime,
+		EndTime:     dataframe.EndTime,
+		CreatedAt:   dataframe.CreatedAt,
 	}
 
 	handlers.RespondJSON(w, response, http.StatusCreated)

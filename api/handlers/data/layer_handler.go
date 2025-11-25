@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -13,22 +12,19 @@ import (
 	"github.com/nathanaday/iot-data-sandbox/api/handlers"
 	"github.com/nathanaday/iot-data-sandbox/internal/persistence"
 	"github.com/nathanaday/iot-data-sandbox/internal/services"
-	"github.com/nathanaday/iot-data-sandbox/internal/storage"
 )
 
 type LayerHandler struct {
 	store            *persistence.Store
-	fileStore        *storage.FileStore
 	dataLayerService *services.DataLayerService
 }
 
-func NewLayerHandler(store *persistence.Store, fileStore *storage.FileStore) *LayerHandler {
-	dataSourceService := services.NewDataSourceService(store, fileStore)
-	dataLayerService := services.NewDataLayerService(store, dataSourceService)
+func NewLayerHandler(store *persistence.Store) *LayerHandler {
+	dataframeService := services.NewDataFrameService(store)
+	dataLayerService := services.NewDataLayerService(store, dataframeService)
 
 	return &LayerHandler{
 		store:            store,
-		fileStore:        fileStore,
 		dataLayerService: dataLayerService,
 	}
 }
@@ -126,24 +122,10 @@ func (h *LayerHandler) LoadCSV(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get optional datasource name from form
-	name := r.FormValue("name")
-	if name == "" {
-		name = strings.TrimSuffix(header.Filename, filepath.Ext(header.Filename))
-	}
-
-	// Save the file
-	savedFilename, err := h.fileStore.SaveFile(header.Filename, file, 10<<20)
-	if err != nil {
-		handlers.RespondError(w, fmt.Sprintf("Failed to save file: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	// Load CSV into layer
-	if err := h.dataLayerService.LoadFromCSV(id, savedFilename); err != nil {
-		// Clean up the saved file on error
-		h.fileStore.DeleteFile(savedFilename)
-		handlers.RespondError(w, fmt.Sprintf("Failed to load CSV: %v", err), http.StatusInternalServerError)
+	// Load CSV directly into layer (no filesystem storage)
+	// CSV data is parsed and inserted directly into SQLite
+	if err := h.dataLayerService.LoadFromCSV(id, file); err != nil {
+		handlers.RespondError(w, fmt.Sprintf("Failed to load CSV: %v", err), http.StatusBadRequest)
 		return
 	}
 
@@ -304,27 +286,26 @@ func (h *LayerHandler) GetLayerDataMetadata(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	layer, dataSourceSchema, err := h.store.LoadLayerWithDataSource(id)
+	layer, dataframeSchema, err := h.store.LoadLayerWithDataFrame(id)
 	if err != nil {
 		handlers.RespondError(w, "Layer not found", http.StatusNotFound)
 		return
 	}
 
-	if layer.DataSourceId == nil || dataSourceSchema == nil {
-		handlers.RespondError(w, "Layer has no associated data source", http.StatusNotFound)
+	if layer.DataFrameId == nil || dataframeSchema == nil {
+		handlers.RespondError(w, "Layer has no associated dataframe", http.StatusNotFound)
 		return
 	}
 
-	metadata := DataSourceMetadata{
-		DataSourceId: dataSourceSchema.DataSourceId,
-		Name:         dataSourceSchema.Name,
-		Type:         "csv", // DataSourceType 0 = CSV
-		RowCount:     dataSourceSchema.RowCount,
-		StartTime:    dataSourceSchema.StartTime,
-		EndTime:      dataSourceSchema.EndTime,
-		TimeLabel:    dataSourceSchema.TimeLabel,
-		ValueLabel:   dataSourceSchema.ValueLabel,
-		WhenCreated:  dataSourceSchema.WhenCreated,
+	metadata := DataFrameMetadata{
+		DataFrameId: dataframeSchema.DataFrameId,
+		ProjectId:   dataframeSchema.ProjectId,
+		Name:        dataframeSchema.Name,
+		Description: dataframeSchema.Description,
+		RowCount:    dataframeSchema.RowCount,
+		StartTime:   dataframeSchema.StartTime,
+		EndTime:     dataframeSchema.EndTime,
+		CreatedAt:   dataframeSchema.CreatedAt,
 	}
 
 	handlers.RespondJSON(w, metadata, http.StatusOK)
@@ -350,13 +331,13 @@ func (h *LayerHandler) GetLayerData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	layer, err := h.dataLayerService.LoadWithDataSource(id)
+	layer, err := h.dataLayerService.LoadWithDataFrame(id)
 	if err != nil {
 		handlers.RespondError(w, "Layer not found", http.StatusNotFound)
 		return
 	}
 
-	if layer.DataSource == nil {
+	if layer.DataFrame == nil {
 		handlers.RespondJSON(w, DataQueryResponse{
 			Data:     []DataPoint{},
 			RowCount: 0,
@@ -384,28 +365,62 @@ func (h *LayerHandler) GetLayerData(w http.ResponseWriter, r *http.Request) {
 		endTime = &t
 	}
 
+	// Extract data from Gota DataFrame
+	df := layer.DataFrame.Data
+	timestampSeries := df.Col("timestamp")
+	timestamps := timestampSeries.Records()
+
+	// Get first value column (support multi-column in future)
+	var valueSeries []string
+	columnNames := df.Names()
+	for _, colName := range columnNames {
+		if colName != "timestamp" {
+			valueSeries = df.Col(colName).Records()
+			break
+		}
+	}
+
+	if valueSeries == nil {
+		handlers.RespondJSON(w, DataQueryResponse{
+			Data:     []DataPoint{},
+			RowCount: 0,
+		}, http.StatusOK)
+		return
+	}
+
 	// Filter data based on time range
-	dataPoints := make([]DataPoint, 0, len(layer.DataSource.Data))
+	dataPoints := make([]DataPoint, 0)
 	var actualStart, actualEnd time.Time
 
-	for _, entry := range layer.DataSource.Data {
-		// Apply time range filter
-		if startTime != nil && entry.Timestamp.Before(*startTime) {
+	// Skip header row (index 0)
+	for i := 1; i < len(timestamps); i++ {
+		ts, err := time.Parse(time.RFC3339, timestamps[i])
+		if err != nil {
 			continue
 		}
-		if endTime != nil && entry.Timestamp.After(*endTime) {
+
+		// Apply time range filter
+		if startTime != nil && ts.Before(*startTime) {
+			continue
+		}
+		if endTime != nil && ts.After(*endTime) {
+			continue
+		}
+
+		val, err := strconv.ParseFloat(valueSeries[i], 64)
+		if err != nil {
 			continue
 		}
 
 		dataPoints = append(dataPoints, DataPoint{
-			Timestamp: entry.Timestamp,
-			Value:     entry.Value,
+			Timestamp: ts,
+			Value:     val,
 		})
 
 		if len(dataPoints) == 1 {
-			actualStart = entry.Timestamp
+			actualStart = ts
 		}
-		actualEnd = entry.Timestamp
+		actualEnd = ts
 	}
 
 	response := DataQueryResponse{

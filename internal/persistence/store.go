@@ -40,36 +40,34 @@ func createTables(db *sql.DB) error {
         when_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
-    CREATE TABLE IF NOT EXISTS data_sources (
-        data_source_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        project_id INTEGER,
+    CREATE TABLE IF NOT EXISTS dataframes (
+        dataframe_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id INTEGER NOT NULL,
         name TEXT NOT NULL,
-        data_source_type INTEGER NOT NULL,
-        data_source_path TEXT NOT NULL,
+        description TEXT,
+        column_definitions TEXT,
         row_count INTEGER NOT NULL DEFAULT 0,
         start_time TIMESTAMP,
         end_time TIMESTAMP,
-        time_label TEXT NOT NULL DEFAULT 'time',
-        value_label TEXT NOT NULL DEFAULT 'value',
-        when_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE SET NULL
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE CASCADE
     );
 
     CREATE TABLE IF NOT EXISTS data_layers (
         data_layer_id INTEGER PRIMARY KEY AUTOINCREMENT,
         project_id INTEGER,
-        data_source_id INTEGER,
+        dataframe_id INTEGER,
         name TEXT NOT NULL,
         color TEXT NOT NULL DEFAULT '#3b82f6',
         z_index INTEGER NOT NULL DEFAULT 0,
         is_visible BOOLEAN NOT NULL DEFAULT 1,
         FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE CASCADE,
-        FOREIGN KEY (data_source_id) REFERENCES data_sources(data_source_id) ON DELETE CASCADE
+        FOREIGN KEY (dataframe_id) REFERENCES dataframes(dataframe_id) ON DELETE CASCADE
     );
 
-    CREATE INDEX IF NOT EXISTS idx_data_sources_type ON data_sources(data_source_type);
-    CREATE INDEX IF NOT EXISTS idx_data_sources_project ON data_sources(project_id);
+    CREATE INDEX IF NOT EXISTS idx_dataframes_project ON dataframes(project_id);
     CREATE INDEX IF NOT EXISTS idx_data_layers_project ON data_layers(project_id);
+    CREATE INDEX IF NOT EXISTS idx_data_layers_dataframe ON data_layers(dataframe_id);
     CREATE INDEX IF NOT EXISTS idx_data_layers_z_index ON data_layers(project_id, z_index);
     `
 

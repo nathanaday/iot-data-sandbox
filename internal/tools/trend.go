@@ -5,6 +5,7 @@ func init() {
 		ToolManifest{
 			Name:          "CreateTrend",
 			Description:   "Creates a trendline for a given dataset",
+			Category:      CategoryAnalysis,
 			Documentation: "CreateTrend.md",
 			Parameters: []ParameterDefinition{
 				{Name: "dataset", Type: "[]float64", Description: "The dataset to create a trendline for", Required: true},

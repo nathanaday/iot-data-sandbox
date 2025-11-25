@@ -9,7 +9,6 @@ import (
 	"github.com/nathanaday/iot-data-sandbox/api/handlers/data"
 	"github.com/nathanaday/iot-data-sandbox/api/handlers/tools"
 	"github.com/nathanaday/iot-data-sandbox/internal/persistence"
-	"github.com/nathanaday/iot-data-sandbox/internal/storage"
 	httpSwagger "github.com/swaggo/http-swagger"
 )
 
@@ -25,7 +24,7 @@ func ListenAndServe(addr string, r *chi.Mux) error {
 	return nil
 }
 
-func SetupRouter(store *persistence.Store, fileStore *storage.FileStore) *chi.Mux {
+func SetupRouter(store *persistence.Store) *chi.Mux {
 	r := chi.NewRouter()
 
 	r.Use(middleware.Logger)
@@ -33,17 +32,16 @@ func SetupRouter(store *persistence.Store, fileStore *storage.FileStore) *chi.Mu
 	r.Use(middleware.RequestID)
 	r.Use(corsMiddleware)
 
-	// Paths have been removed for clarity - datasources are assigned directly to layers
-	// dataSourceHandler := data.NewDataSourceHandler(store, fileStore)
-	// r.Route("/api/datasources", func(r chi.Router) {
-	// 	r.Post("/", dataSourceHandler.UploadCSV)
-	// 	r.Get("/", dataSourceHandler.ListDataSources)
-	// 	r.Get("/{id}", dataSourceHandler.GetDataSource)
-	// 	r.Get("/{id}/data", dataSourceHandler.QueryData)
-	// 	r.Delete("/{id}", dataSourceHandler.DeleteDataSource)
-	// })
+	// DataFrame routes (replaces datasources)
+	dataframeHandler := data.NewDataFrameHandler(store)
+	r.Route("/api/dataframes", func(r chi.Router) {
+		r.Post("/", dataframeHandler.UploadCSV)
+		r.Get("/", dataframeHandler.ListDataFrames)
+		r.Get("/{id}", dataframeHandler.GetDataFrame)
+		r.Delete("/{id}", dataframeHandler.DeleteDataFrame)
+	})
 
-	projectHandler := data.NewProjectHandler(store, fileStore)
+	projectHandler := data.NewProjectHandler(store)
 	r.Route("/api/projects", func(r chi.Router) {
 		r.Post("/", projectHandler.CreateProject)
 		r.Get("/", projectHandler.ListProjects)
@@ -53,7 +51,7 @@ func SetupRouter(store *persistence.Store, fileStore *storage.FileStore) *chi.Mu
 		r.Get("/{id}/layers", projectHandler.GetProjectLayers)
 	})
 
-	layerHandler := data.NewLayerHandler(store, fileStore)
+	layerHandler := data.NewLayerHandler(store)
 	r.Route("/api/layers", func(r chi.Router) {
 		r.Get("/{id}", layerHandler.GetLayer)
 		r.Delete("/{id}", layerHandler.DeleteLayer)
@@ -65,7 +63,7 @@ func SetupRouter(store *persistence.Store, fileStore *storage.FileStore) *chi.Mu
 		r.Get("/{id}/data", layerHandler.GetLayerData)
 	})
 
-	uiHandler := data.NewUIHandler(store, fileStore)
+	uiHandler := data.NewUIHandler(store)
 	r.Route("/api/ui", func(r chi.Router) {
 		r.Post("/preview_data", uiHandler.PreviewCSV)
 	})

@@ -7,19 +7,16 @@ import (
 
 	"github.com/nathanaday/iot-data-sandbox/api/handlers"
 	"github.com/nathanaday/iot-data-sandbox/internal/persistence"
-	"github.com/nathanaday/iot-data-sandbox/internal/storage"
 	"github.com/nathanaday/iot-data-sandbox/internal/timeseries"
 )
 
 type UIHandler struct {
-	store     *persistence.Store
-	fileStore *storage.FileStore
+	store *persistence.Store
 }
 
-func NewUIHandler(store *persistence.Store, fileStore *storage.FileStore) *UIHandler {
+func NewUIHandler(store *persistence.Store) *UIHandler {
 	return &UIHandler{
-		store:     store,
-		fileStore: fileStore,
+		store: store,
 	}
 }
 
@@ -55,17 +52,8 @@ func (h *UIHandler) PreviewCSV(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Save file temporarily
-	tempFilename, err := h.fileStore.SaveFile(header.Filename, file, 10<<20)
-	if err != nil {
-		handlers.RespondError(w, fmt.Sprintf("Failed to save file: %v", err), http.StatusInternalServerError)
-		return
-	}
-	defer h.fileStore.DeleteFile(tempFilename) // Clean up temp file
-
-	// Load and validate CSV using timeseries package
-	filePath := h.fileStore.GetFilePath(tempFilename)
-	tsData, err := timeseries.LoadAndValidateCSV(filePath)
+	// Load and validate CSV directly from reader (no filesystem storage)
+	tsData, err := timeseries.LoadAndValidateCSVFromReader(file)
 	if err != nil {
 		handlers.RespondError(w, fmt.Sprintf("Failed to parse CSV: %v", err), http.StatusBadRequest)
 		return

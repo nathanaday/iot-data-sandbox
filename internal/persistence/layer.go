@@ -11,9 +11,9 @@ import (
 func (s *Store) SaveLayer(layer *models.DataLayer) error {
 	if layer.DataLayerId == 0 {
 		result, err := s.db.Exec(`
-            INSERT INTO data_layers (project_id, data_source_id, name, color, z_index, is_visible)
+            INSERT INTO data_layers (project_id, dataframe_id, name, color, z_index, is_visible)
             VALUES (?, ?, ?, ?, ?, ?)`,
-			layer.ProjectId, layer.DataSourceId, layer.Name, layer.Color, layer.ZIndex, layer.IsVisible,
+			layer.ProjectId, layer.DataFrameId, layer.Name, layer.Color, layer.ZIndex, layer.IsVisible,
 		)
 		if err != nil {
 			return err
@@ -22,9 +22,9 @@ func (s *Store) SaveLayer(layer *models.DataLayer) error {
 	} else {
 		_, err := s.db.Exec(`
             UPDATE data_layers
-            SET project_id=?, data_source_id=?, name=?, color=?, z_index=?, is_visible=?
+            SET project_id=?, dataframe_id=?, name=?, color=?, z_index=?, is_visible=?
             WHERE data_layer_id=?`,
-			layer.ProjectId, layer.DataSourceId, layer.Name, layer.Color, layer.ZIndex, layer.IsVisible, layer.DataLayerId,
+			layer.ProjectId, layer.DataFrameId, layer.Name, layer.Color, layer.ZIndex, layer.IsVisible, layer.DataLayerId,
 		)
 		return err
 	}
@@ -34,18 +34,18 @@ func (s *Store) SaveLayer(layer *models.DataLayer) error {
 // LoadLayer retrieves a DataLayer by ID
 func (s *Store) LoadLayer(id int64) (*models.DataLayer, error) {
 	layer := &models.DataLayer{}
-	var dataSourceId sql.NullInt64
+	var dataframeId sql.NullInt64
 	err := s.db.QueryRow(`
-        SELECT data_layer_id, project_id, data_source_id, name, color, z_index, is_visible
+        SELECT data_layer_id, project_id, dataframe_id, name, color, z_index, is_visible
         FROM data_layers WHERE data_layer_id=?`, id,
-	).Scan(&layer.DataLayerId, &layer.ProjectId, &dataSourceId, &layer.Name, &layer.Color, &layer.ZIndex, &layer.IsVisible)
+	).Scan(&layer.DataLayerId, &layer.ProjectId, &dataframeId, &layer.Name, &layer.Color, &layer.ZIndex, &layer.IsVisible)
 
 	if err != nil {
 		return nil, err
 	}
 
-	if dataSourceId.Valid {
-		layer.DataSourceId = &dataSourceId.Int64
+	if dataframeId.Valid {
+		layer.DataFrameId = &dataframeId.Int64
 	}
 
 	return layer, nil
@@ -54,7 +54,7 @@ func (s *Store) LoadLayer(id int64) (*models.DataLayer, error) {
 // LoadAllLayers retrieves all DataLayers
 func (s *Store) LoadAllLayers() ([]*models.DataLayer, error) {
 	rows, err := s.db.Query(`
-        SELECT data_layer_id, project_id, data_source_id, name, color, z_index, is_visible
+        SELECT data_layer_id, project_id, dataframe_id, name, color, z_index, is_visible
         FROM data_layers ORDER BY data_layer_id`)
 	if err != nil {
 		return nil, err
@@ -64,12 +64,12 @@ func (s *Store) LoadAllLayers() ([]*models.DataLayer, error) {
 	var layers []*models.DataLayer
 	for rows.Next() {
 		layer := &models.DataLayer{}
-		var dataSourceId sql.NullInt64
-		if err := rows.Scan(&layer.DataLayerId, &layer.ProjectId, &dataSourceId, &layer.Name, &layer.Color, &layer.ZIndex, &layer.IsVisible); err != nil {
+		var dataframeId sql.NullInt64
+		if err := rows.Scan(&layer.DataLayerId, &layer.ProjectId, &dataframeId, &layer.Name, &layer.Color, &layer.ZIndex, &layer.IsVisible); err != nil {
 			return nil, err
 		}
-		if dataSourceId.Valid {
-			layer.DataSourceId = &dataSourceId.Int64
+		if dataframeId.Valid {
+			layer.DataFrameId = &dataframeId.Int64
 		}
 		layers = append(layers, layer)
 	}
@@ -79,7 +79,7 @@ func (s *Store) LoadAllLayers() ([]*models.DataLayer, error) {
 // LoadLayersByProjectId retrieves all DataLayers for a specific project ordered by z_index
 func (s *Store) LoadLayersByProjectId(projectId int64) ([]*models.DataLayer, error) {
 	rows, err := s.db.Query(`
-        SELECT data_layer_id, project_id, data_source_id, name, color, z_index, is_visible
+        SELECT data_layer_id, project_id, dataframe_id, name, color, z_index, is_visible
         FROM data_layers WHERE project_id=? ORDER BY z_index, data_layer_id`, projectId)
 	if err != nil {
 		return nil, err
@@ -89,23 +89,23 @@ func (s *Store) LoadLayersByProjectId(projectId int64) ([]*models.DataLayer, err
 	var layers []*models.DataLayer
 	for rows.Next() {
 		layer := &models.DataLayer{}
-		var dataSourceId sql.NullInt64
-		if err := rows.Scan(&layer.DataLayerId, &layer.ProjectId, &dataSourceId, &layer.Name, &layer.Color, &layer.ZIndex, &layer.IsVisible); err != nil {
+		var dataframeId sql.NullInt64
+		if err := rows.Scan(&layer.DataLayerId, &layer.ProjectId, &dataframeId, &layer.Name, &layer.Color, &layer.ZIndex, &layer.IsVisible); err != nil {
 			return nil, err
 		}
-		if dataSourceId.Valid {
-			layer.DataSourceId = &dataSourceId.Int64
+		if dataframeId.Valid {
+			layer.DataFrameId = &dataframeId.Int64
 		}
 		layers = append(layers, layer)
 	}
 	return layers, rows.Err()
 }
 
-// LoadLayersByDataSourceId retrieves all DataLayers that use a specific datasource
-func (s *Store) LoadLayersByDataSourceId(dataSourceId int64) ([]*models.DataLayer, error) {
+// LoadLayersByDataFrameId retrieves all DataLayers that use a specific dataframe
+func (s *Store) LoadLayersByDataFrameId(dataframeId int64) ([]*models.DataLayer, error) {
 	rows, err := s.db.Query(`
-        SELECT data_layer_id, project_id, data_source_id, name, color, z_index, is_visible
-        FROM data_layers WHERE data_source_id=? ORDER BY data_layer_id`, dataSourceId)
+        SELECT data_layer_id, project_id, dataframe_id, name, color, z_index, is_visible
+        FROM data_layers WHERE dataframe_id=? ORDER BY data_layer_id`, dataframeId)
 	if err != nil {
 		return nil, err
 	}
@@ -114,42 +114,42 @@ func (s *Store) LoadLayersByDataSourceId(dataSourceId int64) ([]*models.DataLaye
 	var layers []*models.DataLayer
 	for rows.Next() {
 		layer := &models.DataLayer{}
-		var dataSourceIdVal sql.NullInt64
-		if err := rows.Scan(&layer.DataLayerId, &layer.ProjectId, &dataSourceIdVal, &layer.Name, &layer.Color, &layer.ZIndex, &layer.IsVisible); err != nil {
+		var dataframeIdVal sql.NullInt64
+		if err := rows.Scan(&layer.DataLayerId, &layer.ProjectId, &dataframeIdVal, &layer.Name, &layer.Color, &layer.ZIndex, &layer.IsVisible); err != nil {
 			return nil, err
 		}
-		if dataSourceIdVal.Valid {
-			layer.DataSourceId = &dataSourceIdVal.Int64
+		if dataframeIdVal.Valid {
+			layer.DataFrameId = &dataframeIdVal.Int64
 		}
 		layers = append(layers, layer)
 	}
 	return layers, rows.Err()
 }
 
-// LoadLayerWithDataSource retrieves a DataLayer with its associated DataSource in one operation
+// LoadLayerWithDataFrame retrieves a DataLayer with its associated DataFrame in one operation
 // This is useful since layers are the primary way to work with data
-func (s *Store) LoadLayerWithDataSource(layerId int64) (*models.DataLayer, *schemas.DataSourceSchema, error) {
+func (s *Store) LoadLayerWithDataFrame(layerId int64) (*models.DataLayer, *schemas.DataFrameSchema, error) {
 	layer, err := s.LoadLayer(layerId)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// If layer has no data source, return layer only
-	if layer.DataSourceId == nil {
+	// If layer has no dataframe, return layer only
+	if layer.DataFrameId == nil {
 		return layer, nil, nil
 	}
 
-	dataSource, err := s.FindByID(*layer.DataSourceId)
+	dataframe, err := s.LoadDataFrame(*layer.DataFrameId)
 	if err != nil {
 		return layer, nil, err
 	}
 
-	return layer, dataSource, nil
+	return layer, dataframe, nil
 }
 
-// LoadLayerWithProjectAndDataSource retrieves a DataLayer with both its Project and DataSource
+// LoadLayerWithProjectAndDataFrame retrieves a DataLayer with both its Project and DataFrame
 // This provides complete context for working with a layer
-func (s *Store) LoadLayerWithProjectAndDataSource(layerId int64) (*models.DataLayer, *models.Project, *schemas.DataSourceSchema, error) {
+func (s *Store) LoadLayerWithProjectAndDataFrame(layerId int64) (*models.DataLayer, *models.Project, *schemas.DataFrameSchema, error) {
 	layer, err := s.LoadLayer(layerId)
 	if err != nil {
 		return nil, nil, nil, err
@@ -163,17 +163,17 @@ func (s *Store) LoadLayerWithProjectAndDataSource(layerId int64) (*models.DataLa
 		}
 	}
 
-	// If layer has no data source, return layer and project only
-	if layer.DataSourceId == nil {
+	// If layer has no dataframe, return layer and project only
+	if layer.DataFrameId == nil {
 		return layer, project, nil, nil
 	}
 
-	dataSource, err := s.FindByID(*layer.DataSourceId)
+	dataframe, err := s.LoadDataFrame(*layer.DataFrameId)
 	if err != nil {
 		return layer, project, nil, err
 	}
 
-	return layer, project, dataSource, nil
+	return layer, project, dataframe, nil
 }
 
 // DeleteLayer removes a DataLayer by ID

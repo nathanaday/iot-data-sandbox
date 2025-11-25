@@ -1,8 +1,19 @@
 package tools
 
+type ToolCategory string
+
+const (
+	CategoryAnalysis  ToolCategory = "analysis"
+	CategoryFilter    ToolCategory = "filter"
+	CategoryTransform ToolCategory = "transform"
+	CategoryAI        ToolCategory = "ai"
+	CategoryOther     ToolCategory = "other"
+)
+
 type ToolManifest struct {
 	Name          string                `json:"name"`
 	Description   string                `json:"description"`
+	Category      ToolCategory          `json:"category"`
 	Documentation string                `json:"documentation"`
 	Parameters    []ParameterDefinition `json:"parameters"`
 	Examples      []string              `json:"examples,omitempty"`
