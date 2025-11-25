@@ -8,13 +8,11 @@ import (
 	"github.com/nathanaday/iot-data-sandbox/internal/persistence"
 )
 
-// DataLayerService provides business operations for DataLayer entities
 type DataLayerService struct {
 	store            *persistence.Store
 	dataframeService *DataFrameService
 }
 
-// NewDataLayerService creates a new DataLayerService
 func NewDataLayerService(store *persistence.Store, dataframeService *DataFrameService) *DataLayerService {
 	return &DataLayerService{
 		store:            store,
@@ -25,11 +23,11 @@ func NewDataLayerService(store *persistence.Store, dataframeService *DataFrameSe
 // Create creates a new DataLayer within a project
 func (s *DataLayerService) Create(projectId int64, name string) (*models.DataLayer, error) {
 	layer := &models.DataLayer{
-		ProjectId:  projectId,
-		Name:       name,
-		Color:      "#3b82f6", // default blue
-		ZIndex:     0,
-		IsVisible:  true,
+		ProjectId: projectId,
+		Name:      name,
+		Color:     "#3b82f6", // default blue
+		ZIndex:    0,
+		IsVisible: true,
 	}
 
 	if err := s.store.SaveLayer(layer); err != nil {

@@ -8,17 +8,13 @@ import (
 	"github.com/nathanaday/iot-data-sandbox/internal/schemas"
 )
 
-// ColumnDefinition describes a column in the DataFrame
 type ColumnDefinition struct {
 	Name         string `json:"name"`          // Standardized name (e.g., "value1", "value2")
 	Type         string `json:"type"`          // Data type (e.g., "float64", "string")
 	OriginalName string `json:"original_name"` // Original name from CSV (e.g., "temperature")
 }
 
-// DataFrame is the application-level model that represents time-series data
-// Data is stored in SQLite in a dynamic table (timeseries_<dataframe_id>)
 type DataFrame struct {
-	// Metadata (persisted in dataframes table)
 	DataFrameId       int64
 	ProjectId         int64
 	Name              string
@@ -29,11 +25,9 @@ type DataFrame struct {
 	EndTime           *time.Time
 	CreatedAt         time.Time
 
-	// In-memory data (loaded from dynamic table when needed)
 	Data dataframe.DataFrame
 }
 
-// ToSchema converts the DataFrame model to a schema for SQLite persistence
 func (df *DataFrame) ToSchema() *schemas.DataFrameSchema {
 	columnDefsJSON, _ := json.Marshal(df.ColumnDefinitions)
 

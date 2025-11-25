@@ -8,13 +8,11 @@ import (
 	"github.com/nathanaday/iot-data-sandbox/internal/persistence"
 )
 
-// ProjectService provides business operations for Project entities
 type ProjectService struct {
 	store            *persistence.Store
 	dataLayerService *DataLayerService
 }
 
-// NewProjectService creates a new ProjectService
 func NewProjectService(store *persistence.Store, dataLayerService *DataLayerService) *ProjectService {
 	return &ProjectService{
 		store:            store,

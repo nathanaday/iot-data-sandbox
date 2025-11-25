@@ -11,12 +11,10 @@ import (
 	"github.com/nathanaday/iot-data-sandbox/internal/timeseries"
 )
 
-// DataFrameService provides business operations for DataFrame entities
 type DataFrameService struct {
 	store *persistence.Store
 }
 
-// NewDataFrameService creates a new DataFrameService
 func NewDataFrameService(store *persistence.Store) *DataFrameService {
 	return &DataFrameService{
 		store: store,
