@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/nathanaday/iot-data-sandbox/internal/jobs"
 	"github.com/nathanaday/iot-data-sandbox/internal/persistence"
 	"github.com/nathanaday/iot-data-sandbox/internal/services"
 )
@@ -16,10 +17,13 @@ func main() {
 	}
 	defer store.Close()
 
+	// Initialize job manager
+	jobManager := jobs.NewJobManager()
+
 	// Initialize services
 	dataframeSvc := services.NewDataFrameService(store)
 	dataLayerSvc := services.NewDataLayerService(store, dataframeSvc)
-	projectSvc := services.NewProjectService(store, dataLayerSvc)
+	projectSvc := services.NewProjectService(store, dataLayerSvc, jobManager)
 
 	// Project Creation
 	p, err := projectSvc.Create("My IoT Dashboard")
