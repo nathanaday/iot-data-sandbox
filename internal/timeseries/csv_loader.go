@@ -96,14 +96,14 @@ func validateStructure(df dataframe.DataFrame) error {
 
 	for _, col := range cols {
 		colLower := strings.ToLower(col)
-		if colLower == TimestampCol || colLower == "time" || colLower == "date" || colLower == "datetime" {
+		if colLower == TimestampCol || colLower == "time" || colLower == "date" || colLower == "datetime" || colLower == "ts" {
 			hasTimestamp = true
 			break
 		}
 	}
 
 	if !hasTimestamp {
-		return &ValidationError{Message: "CSV must contain a timestamp column (timestamp, time, date, or datetime)"}
+		return &ValidationError{Message: "CSV must contain a timestamp column (timestamp, time, date, datetime, or ts)"}
 	}
 
 	return nil
@@ -124,7 +124,7 @@ func normalizeTimestamps(df dataframe.DataFrame) (dataframe.DataFrame, string, s
 	timestampColName := ""
 	for _, col := range cols {
 		colLower := strings.ToLower(col)
-		if colLower == TimestampCol || colLower == "time" || colLower == "date" || colLower == "datetime" {
+		if colLower == TimestampCol || colLower == "time" || colLower == "date" || colLower == "datetime" || colLower == "ts" {
 			timestampColName = col
 			timeLabel = col
 			break
@@ -373,4 +373,131 @@ func getFilteredTimestamps(records []string, mask []bool) []string {
 		}
 	}
 	return filtered
+}
+
+// LoadAndSplitMultiColumnCSV loads a CSV and splits it into separate TimeSeriesData for each value column
+// Returns a slice of TimeSeriesData, one for each non-timestamp column
+func LoadAndSplitMultiColumnCSV(reader io.Reader) ([]*TimeSeriesData, error) {
+	startTime := time.Now()
+	fmt.Printf("[CSV Loader] Starting CSV parse at %s\n", startTime.Format("15:04:05.000"))
+
+	df := dataframe.ReadCSV(reader)
+	parseTime := time.Since(startTime)
+	fmt.Printf("[CSV Loader] CSV parsed in %v (rows: %d)\n", parseTime, df.Nrow())
+
+	if df.Err != nil {
+		return nil, fmt.Errorf("failed to parse CSV: %w", df.Err)
+	}
+
+	if err := validateStructure(df); err != nil {
+		return nil, err
+	}
+
+	// Find the timestamp column
+	cols := df.Names()
+	timestampColName := ""
+	timeLabel := "time"
+
+	for _, col := range cols {
+		colLower := strings.ToLower(col)
+		if colLower == TimestampCol || colLower == "time" || colLower == "date" || colLower == "datetime" || colLower == "ts" {
+			timestampColName = col
+			timeLabel = col
+			break
+		}
+	}
+
+	if timestampColName == "" {
+		return nil, &ValidationError{Message: "no timestamp column found"}
+	}
+
+	// Normalize timestamps once
+	timestampSeries := df.Col(timestampColName)
+	records := timestampSeries.Records()
+	normalizedTimestamps := make([]string, len(records))
+
+	for i, record := range records {
+		if i == 0 {
+			normalizedTimestamps[i] = "timestamp"
+			continue
+		}
+
+		parsedTime, err := parseTimestamp(record)
+		if err != nil {
+			return nil, fmt.Errorf("invalid timestamp at row %d: %w", i, err)
+		}
+		normalizedTimestamps[i] = parsedTime.Format(time.RFC3339)
+	}
+
+	// Find all value columns (non-timestamp columns)
+	var valueColumns []string
+	for _, col := range cols {
+		if col != timestampColName {
+			valueColumns = append(valueColumns, col)
+		}
+	}
+
+	if len(valueColumns) == 0 {
+		return nil, &ValidationError{Message: "no value columns found"}
+	}
+
+	// Create separate TimeSeriesData for each value column
+	var result []*TimeSeriesData
+
+	splitStartTime := time.Now()
+	fmt.Printf("[CSV Loader] Starting to split into %d columns at %s\n", len(valueColumns), splitStartTime.Format("15:04:05.000"))
+
+	for i, valueColName := range valueColumns {
+		colStartTime := time.Now()
+		// Create a NEW timestamp series for each DataFrame to avoid sharing series objects
+		newTimestampSeries := series.New(normalizedTimestamps, series.String, "timestamp")
+
+		// Extract and validate value series
+		origValueSeries := df.Col(valueColName)
+		valueRecords := origValueSeries.Records()
+
+		// Validate that all values are numeric
+		for i := 1; i < len(valueRecords); i++ {
+			if _, err := strconv.ParseFloat(valueRecords[i], 64); err != nil {
+				return nil, &ValidationError{Message: fmt.Sprintf("invalid value in column '%s' at row %d: must be a number", valueColName, i)}
+			}
+		}
+
+		// Create new value series with standardized name
+		newValueSeries := series.New(valueRecords, origValueSeries.Type(), "value")
+
+		// Create DataFrame with timestamp and this value column
+		singleDF := dataframe.New(
+			newTimestampSeries,
+			newValueSeries,
+		)
+
+		// Create TimeSeriesData
+		tsData := &TimeSeriesData{
+			DataFrame:  singleDF,
+			RowCount:   singleDF.Nrow(),
+			TimeLabel:  timeLabel,
+			ValueLabel: valueColName,
+		}
+
+		// Calculate time range
+		if singleDF.Nrow() > 0 {
+			startTime, endTime, err := getTimeRange(singleDF)
+			if err == nil {
+				tsData.StartTime = startTime
+				tsData.EndTime = endTime
+			}
+		}
+
+		result = append(result, tsData)
+
+		colTime := time.Since(colStartTime)
+		fmt.Printf("[CSV Loader] Column %d/%d (%s) processed in %v\n", i+1, len(valueColumns), valueColName, colTime)
+	}
+
+	totalSplitTime := time.Since(splitStartTime)
+	totalTime := time.Since(startTime)
+	fmt.Printf("[CSV Loader] Split complete in %v (total: %v)\n", totalSplitTime, totalTime)
+
+	return result, nil
 }

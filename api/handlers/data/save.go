@@ -128,3 +128,28 @@ type PreviewDataResponse struct {
 	TimeLabel  string     `json:"time_label"`
 	ValueLabel string     `json:"value_label"`
 }
+
+// Job response types
+
+type UploadJobResponse struct {
+	JobID string `json:"job_id"`
+}
+
+type JobStatusResponse struct {
+	JobID       string              `json:"job_id"`
+	ProjectID   int64               `json:"project_id"`
+	Status      string              `json:"status"`
+	Layers      []LayerStatusDetail `json:"layers"`
+	Error       string              `json:"error,omitempty"`
+	CreatedAt   time.Time           `json:"created_at"`
+	UpdatedAt   time.Time           `json:"updated_at"`
+	CompletedAt *time.Time          `json:"completed_at,omitempty"`
+}
+
+type LayerStatusDetail struct {
+	LayerName       string  `json:"layer_name"`
+	RowsWritten     int     `json:"rows_written"`
+	TotalRows       int     `json:"total_rows"`
+	PercentComplete float64 `json:"percent_complete"`
+	Status          string  `json:"status"`
+}

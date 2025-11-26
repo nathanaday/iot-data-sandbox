@@ -120,9 +120,18 @@ func (s *Store) CreateDataFrameTable(dataframeId int64, columnNames []string) er
 	return nil
 }
 
+// ProgressCallback is called periodically during data insertion to report progress
+type ProgressCallback func(rowsWritten, totalRows int)
+
 // InsertDataFrameData inserts data from a Gota DataFrame into the dynamic table
 // The gotaDF must have a "timestamp" column and one or more value columns
 func (s *Store) InsertDataFrameData(dataframeId int64, gotaDF dataframe.DataFrame) error {
+	return s.InsertDataFrameDataWithProgress(dataframeId, gotaDF, nil)
+}
+
+// InsertDataFrameDataWithProgress inserts data with progress reporting
+func (s *Store) InsertDataFrameDataWithProgress(dataframeId int64, gotaDF dataframe.DataFrame, progressCallback ProgressCallback) error {
+	startTime := time.Now()
 	tableName := getDataFrameTableName(dataframeId)
 	columnNames := gotaDF.Names()
 
@@ -138,6 +147,9 @@ func (s *Store) InsertDataFrameData(dataframeId int64, gotaDF dataframe.DataFram
 		return fmt.Errorf("no value columns found in dataframe")
 	}
 
+	rowCount := gotaDF.Nrow() - 1 // Subtract header
+	fmt.Printf("[Persistence] Starting insert for table %s (%d rows)\n", tableName, rowCount)
+
 	// Build INSERT statement
 	placeholders := []string{"?", "?"}
 	for range valueColumns {
@@ -150,22 +162,27 @@ func (s *Store) InsertDataFrameData(dataframeId int64, gotaDF dataframe.DataFram
 		strings.Join(placeholders, ", "))
 
 	// Prepare statement for bulk insert
+	prepareStart := time.Now()
 	stmt, err := s.db.Prepare(insertSQL)
 	if err != nil {
 		return fmt.Errorf("failed to prepare insert statement: %w", err)
 	}
 	defer stmt.Close()
+	fmt.Printf("[Persistence] Statement prepared in %v\n", time.Since(prepareStart))
 
 	// Begin transaction for bulk insert
+	txStart := time.Now()
 	tx, err := s.db.Begin()
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback()
+	fmt.Printf("[Persistence] Transaction started in %v\n", time.Since(txStart))
 
 	txStmt := tx.Stmt(stmt)
 
 	// Extract data from Gota DataFrame and insert
+	extractStart := time.Now()
 	timestampSeries := gotaDF.Col("timestamp")
 	timestamps := timestampSeries.Records()
 
@@ -174,8 +191,15 @@ func (s *Store) InsertDataFrameData(dataframeId int64, gotaDF dataframe.DataFram
 	for i, colName := range valueColumns {
 		valueSeries[i] = gotaDF.Col(colName)
 	}
+	fmt.Printf("[Persistence] Data extracted in %v\n", time.Since(extractStart))
 
 	// Insert each row (skip header row at index 0)
+	insertLoopStart := time.Now()
+	progressInterval := rowCount / 10 // Log every 10%
+	if progressInterval < 1000 {
+		progressInterval = 1000 // At least every 1000 rows
+	}
+
 	for i := 1; i < len(timestamps); i++ {
 		rowID := i
 
@@ -203,9 +227,40 @@ func (s *Store) InsertDataFrameData(dataframeId int64, gotaDF dataframe.DataFram
 		if _, err := txStmt.Exec(values...); err != nil {
 			return fmt.Errorf("failed to insert row %d: %w", i, err)
 		}
+
+		// Progress logging and callback
+		if i%progressInterval == 0 {
+			elapsed := time.Since(insertLoopStart)
+			rowsPerSec := float64(i) / elapsed.Seconds()
+			fmt.Printf("[Persistence] Inserted %d/%d rows (%.0f rows/sec)\n", i, rowCount, rowsPerSec)
+
+			// Call progress callback if provided
+			if progressCallback != nil {
+				progressCallback(i, rowCount)
+			}
+		}
+	}
+	insertLoopTime := time.Since(insertLoopStart)
+	fmt.Printf("[Persistence] Insert loop completed in %v\n", insertLoopTime)
+
+	// Commit transaction
+	commitStart := time.Now()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	commitTime := time.Since(commitStart)
+	fmt.Printf("[Persistence] Transaction committed in %v\n", commitTime)
+
+	totalTime := time.Since(startTime)
+	rowsPerSec := float64(rowCount) / totalTime.Seconds()
+	fmt.Printf("[Persistence] Total insert time: %v (%.0f rows/sec)\n", totalTime, rowsPerSec)
+
+	// Final progress callback
+	if progressCallback != nil {
+		progressCallback(rowCount, rowCount)
 	}
 
-	return tx.Commit()
+	return nil
 }
 
 // LoadDataFrameData loads data from the dynamic table into a Gota DataFrame

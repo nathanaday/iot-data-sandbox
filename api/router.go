@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/nathanaday/iot-data-sandbox/api/handlers/data"
 	"github.com/nathanaday/iot-data-sandbox/api/handlers/tools"
+	"github.com/nathanaday/iot-data-sandbox/internal/jobs"
 	"github.com/nathanaday/iot-data-sandbox/internal/persistence"
 	httpSwagger "github.com/swaggo/http-swagger"
 )
@@ -32,6 +33,9 @@ func SetupRouter(store *persistence.Store) *chi.Mux {
 	r.Use(middleware.RequestID)
 	r.Use(corsMiddleware)
 
+	// Create job manager for async operations
+	jobManager := jobs.NewJobManager()
+
 	// DataFrame routes (replaces datasources)
 	dataframeHandler := data.NewDataFrameHandler(store)
 	r.Route("/api/dataframes", func(r chi.Router) {
@@ -41,7 +45,7 @@ func SetupRouter(store *persistence.Store) *chi.Mux {
 		r.Delete("/{id}", dataframeHandler.DeleteDataFrame)
 	})
 
-	projectHandler := data.NewProjectHandler(store)
+	projectHandler := data.NewProjectHandler(store, jobManager)
 	r.Route("/api/projects", func(r chi.Router) {
 		r.Post("/", projectHandler.CreateProject)
 		r.Get("/", projectHandler.ListProjects)
@@ -49,6 +53,8 @@ func SetupRouter(store *persistence.Store) *chi.Mux {
 		r.Delete("/{id}", projectHandler.DeleteProject)
 		r.Post("/{id}/layers", projectHandler.AddLayer)
 		r.Get("/{id}/layers", projectHandler.GetProjectLayers)
+		r.Post("/{id}/load-csv", projectHandler.LoadCSV)
+		r.Get("/{id}/load-csv/status", projectHandler.GetLoadCSVStatus)
 	})
 
 	layerHandler := data.NewLayerHandler(store)

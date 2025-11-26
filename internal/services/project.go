@@ -1,22 +1,28 @@
 package services
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"time"
 
+	"github.com/nathanaday/iot-data-sandbox/internal/jobs"
 	"github.com/nathanaday/iot-data-sandbox/internal/models"
 	"github.com/nathanaday/iot-data-sandbox/internal/persistence"
+	"github.com/nathanaday/iot-data-sandbox/internal/timeseries"
 )
 
 type ProjectService struct {
 	store            *persistence.Store
 	dataLayerService *DataLayerService
+	jobManager       *jobs.JobManager
 }
 
-func NewProjectService(store *persistence.Store, dataLayerService *DataLayerService) *ProjectService {
+func NewProjectService(store *persistence.Store, dataLayerService *DataLayerService, jobManager *jobs.JobManager) *ProjectService {
 	return &ProjectService{
 		store:            store,
 		dataLayerService: dataLayerService,
+		jobManager:       jobManager,
 	}
 }
 
@@ -198,3 +204,235 @@ func (s *ProjectService) GetLayerCount(projectID int64) (int, error) {
 	}
 	return len(layers), nil
 }
+
+// LoadMultiColumnCSV loads a multi-column CSV and creates separate DataFrames and layers for each value column
+// Each value column (non-timestamp) becomes its own layer with a dedicated DataFrame
+func (s *ProjectService) LoadMultiColumnCSV(projectID int64, csvReader io.Reader) ([]*models.DataLayer, error) {
+	startTime := time.Now()
+	fmt.Printf("[Project Service] Starting LoadMultiColumnCSV for project %d at %s\n", projectID, startTime.Format("15:04:05.000"))
+
+	// Verify project exists
+	_, err := s.store.LoadProject(projectID)
+	if err != nil {
+		return nil, fmt.Errorf("project not found: %w", err)
+	}
+
+	// Split the CSV into separate time series (one per value column)
+	splitStartTime := time.Now()
+	tsDataList, err := timeseries.LoadAndSplitMultiColumnCSV(csvReader)
+	splitTime := time.Since(splitStartTime)
+	fmt.Printf("[Project Service] CSV split completed in %v, got %d time series\n", splitTime, len(tsDataList))
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse CSV: %w", err)
+	}
+
+	if len(tsDataList) == 0 {
+		return nil, fmt.Errorf("no data columns found in CSV")
+	}
+
+	// Get the current max z-index for this project
+	existingLayers, err := s.store.LoadLayersByProjectId(projectID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load existing layers: %w", err)
+	}
+
+	maxZIndex := -1
+	for _, layer := range existingLayers {
+		if layer.ZIndex > maxZIndex {
+			maxZIndex = layer.ZIndex
+		}
+	}
+
+	// Create a DataFrame and layer for each time series
+	var createdLayers []*models.DataLayer
+	dataframeService := NewDataFrameService(s.store)
+
+	createStartTime := time.Now()
+	fmt.Printf("[Project Service] Starting to create %d DataFrames and layers\n", len(tsDataList))
+
+	for i, tsData := range tsDataList {
+		dfStartTime := time.Now()
+		fmt.Printf("[Project Service] Creating DataFrame %d/%d (%s)...\n", i+1, len(tsDataList), tsData.ValueLabel)
+
+		// Create DataFrame
+		dataframe, err := dataframeService.CreateFromGotaDataFrame(projectID, tsData.ValueLabel, tsData)
+		dfTime := time.Since(dfStartTime)
+		fmt.Printf("[Project Service] DataFrame %d/%d created in %v (id: %d)\n", i+1, len(tsDataList), dfTime, dataframe.DataFrameId)
+		if err != nil {
+			// Rollback: delete already created dataframes and layers
+			for _, layer := range createdLayers {
+				if layer.DataFrameId != nil {
+					dataframeService.Delete(*layer.DataFrameId)
+				}
+				s.dataLayerService.Delete(layer.DataLayerId)
+			}
+			return nil, fmt.Errorf("failed to create dataframe for column '%s': %w", tsData.ValueLabel, err)
+		}
+
+		// Create layer with the value column name
+		layer := &models.DataLayer{
+			ProjectId:   projectID,
+			DataFrameId: &dataframe.DataFrameId,
+			Name:        tsData.ValueLabel,
+			Color:       "#3b82f6", // default blue
+			ZIndex:      maxZIndex + 1 + i,
+			IsVisible:   true,
+		}
+
+		if err := s.store.SaveLayer(layer); err != nil {
+			// Rollback: delete already created dataframes and layers
+			dataframeService.Delete(dataframe.DataFrameId)
+			for _, l := range createdLayers {
+				if l.DataFrameId != nil {
+					dataframeService.Delete(*l.DataFrameId)
+				}
+				s.dataLayerService.Delete(l.DataLayerId)
+			}
+			return nil, fmt.Errorf("failed to create layer for column '%s': %w", tsData.ValueLabel, err)
+		}
+
+		createdLayers = append(createdLayers, layer)
+	}
+
+	createTime := time.Since(createStartTime)
+	totalTime := time.Since(startTime)
+	fmt.Printf("[Project Service] All DataFrames and layers created in %v (total: %v)\n", createTime, totalTime)
+
+	return createdLayers, nil
+}
+
+// LoadMultiColumnCSVAsync starts an async job to load a multi-column CSV
+// Returns a job ID immediately, processing happens in background
+func (s *ProjectService) LoadMultiColumnCSVAsync(projectID int64, csvReader io.Reader) (string, error) {
+	// First, we need to read the CSV to get column names to initialize the job
+	// We'll need to buffer the CSV data since we can only read the reader once
+	csvData, err := io.ReadAll(csvReader)
+	if err != nil {
+		return "", fmt.Errorf("failed to read CSV data: %w", err)
+	}
+
+	// Parse CSV to get column names (for job initialization)
+	previewReader := io.NopCloser(bytes.NewReader(csvData))
+	tsDataList, err := timeseries.LoadAndSplitMultiColumnCSV(previewReader)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse CSV: %w", err)
+	}
+
+	if len(tsDataList) == 0 {
+		return "", fmt.Errorf("no data columns found in CSV")
+	}
+
+	// Get layer names
+	layerNames := make([]string, len(tsDataList))
+	for i, ts := range tsDataList {
+		layerNames[i] = ts.ValueLabel
+	}
+
+	// Create job
+	job := s.jobManager.CreateJob(projectID, layerNames)
+	fmt.Printf("[Project Service] Created async job %s for project %d with %d layers\n", job.JobID, projectID, len(layerNames))
+
+	// Start background processing
+	go s.processCSVUploadJob(job.JobID, projectID, csvData, tsDataList)
+
+	return job.JobID, nil
+}
+
+// processCSVUploadJob processes the CSV upload in the background
+func (s *ProjectService) processCSVUploadJob(jobID string, projectID int64, csvData []byte, tsDataList []*timeseries.TimeSeriesData) {
+	startTime := time.Now()
+	fmt.Printf("[Project Service] Starting background job %s at %s\n", jobID, startTime.Format("15:04:05.000"))
+
+	// Update job status to in progress
+	s.jobManager.UpdateJobStatus(jobID, jobs.JobStatusInProgress)
+
+	// Get the current max z-index for this project
+	existingLayers, err := s.store.LoadLayersByProjectId(projectID)
+	if err != nil {
+		s.jobManager.SetJobError(jobID, fmt.Sprintf("failed to load existing layers: %v", err))
+		return
+	}
+
+	maxZIndex := -1
+	for _, layer := range existingLayers {
+		if layer.ZIndex > maxZIndex {
+			maxZIndex = layer.ZIndex
+		}
+	}
+
+	// Create a DataFrame and layer for each time series
+	var createdLayers []*models.DataLayer
+	dataframeService := NewDataFrameService(s.store)
+
+	for i, tsData := range tsDataList {
+		layerIndex := i
+		fmt.Printf("[Project Service] Processing layer %d/%d (%s)...\n", i+1, len(tsDataList), tsData.ValueLabel)
+
+		// Update layer total rows in job
+		s.jobManager.UpdateLayerProgress(jobID, layerIndex, 0, tsData.RowCount-1)
+
+		// Create progress callback for this layer
+		progressCallback := func(rowsWritten, totalRows int) {
+			s.jobManager.UpdateLayerProgress(jobID, layerIndex, rowsWritten, totalRows)
+		}
+
+		// Create DataFrame with progress reporting
+		dataframe, err := dataframeService.CreateFromGotaDataFrameWithProgress(projectID, tsData.ValueLabel, tsData, progressCallback)
+		if err != nil {
+			// Rollback: delete already created dataframes and layers
+			for _, layer := range createdLayers {
+				if layer.DataFrameId != nil {
+					dataframeService.Delete(*layer.DataFrameId)
+				}
+				s.dataLayerService.Delete(layer.DataLayerId)
+			}
+			s.jobManager.SetJobError(jobID, fmt.Sprintf("failed to create dataframe for column '%s': %v", tsData.ValueLabel, err))
+			return
+		}
+
+		// Mark layer as complete
+		s.jobManager.UpdateLayerStatus(jobID, layerIndex, jobs.JobStatusSuccess)
+
+		// Create layer with the value column name
+		layer := &models.DataLayer{
+			ProjectId:   projectID,
+			DataFrameId: &dataframe.DataFrameId,
+			Name:        tsData.ValueLabel,
+			Color:       "#3b82f6", // default blue
+			ZIndex:      maxZIndex + 1 + i,
+			IsVisible:   true,
+		}
+
+		if err := s.store.SaveLayer(layer); err != nil {
+			// Rollback: delete already created dataframes and layers
+			dataframeService.Delete(dataframe.DataFrameId)
+			for _, l := range createdLayers {
+				if l.DataFrameId != nil {
+					dataframeService.Delete(*l.DataFrameId)
+				}
+				s.dataLayerService.Delete(l.DataLayerId)
+			}
+			s.jobManager.SetJobError(jobID, fmt.Sprintf("failed to create layer for column '%s': %v", tsData.ValueLabel, err))
+			return
+		}
+
+		createdLayers = append(createdLayers, layer)
+	}
+
+	// Mark job as complete
+	s.jobManager.UpdateJobStatus(jobID, jobs.JobStatusSuccess)
+
+	totalTime := time.Since(startTime)
+	fmt.Printf("[Project Service] Job %s completed in %v\n", jobID, totalTime)
+}
+
+// GetJobStatus retrieves the status of a job
+func (s *ProjectService) GetJobStatus(jobID string) (*jobs.UploadJob, error) {
+	job, exists := s.jobManager.GetJob(jobID)
+	if !exists {
+		return nil, fmt.Errorf("job not found")
+	}
+	return job, nil
+}
+

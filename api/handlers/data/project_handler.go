@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/nathanaday/iot-data-sandbox/api/handlers"
+	"github.com/nathanaday/iot-data-sandbox/internal/jobs"
 	"github.com/nathanaday/iot-data-sandbox/internal/models"
 	"github.com/nathanaday/iot-data-sandbox/internal/persistence"
 	"github.com/nathanaday/iot-data-sandbox/internal/services"
@@ -18,10 +20,10 @@ type ProjectHandler struct {
 	projectService *services.ProjectService
 }
 
-func NewProjectHandler(store *persistence.Store) *ProjectHandler {
+func NewProjectHandler(store *persistence.Store, jobManager *jobs.JobManager) *ProjectHandler {
 	dataframeService := services.NewDataFrameService(store)
 	dataLayerService := services.NewDataLayerService(store, dataframeService)
-	projectService := services.NewProjectService(store, dataLayerService)
+	projectService := services.NewProjectService(store, dataLayerService, jobManager)
 
 	return &ProjectHandler{
 		store:          store,
@@ -229,6 +231,122 @@ func (h *ProjectHandler) GetProjectLayers(w http.ResponseWriter, r *http.Request
 	}
 
 	handlers.RespondJSON(w, LayerListResponse{Layers: responses}, http.StatusOK)
+}
+
+// LoadCSV godoc
+// @Summary Load multi-column CSV into project (async)
+// @Description Upload a multi-column CSV file asynchronously. Returns a job ID immediately. Creates separate DataFrames and layers for each value column (non-timestamp). For example, a CSV with columns (ts, humidity, smoke, temp) will create three layers: humidity, smoke, and temp. Use GET /api/projects/{id}/load-csv/status?job={job_id} to check progress.
+// @Tags projects
+// @Accept multipart/form-data
+// @Produce json
+// @Param id path int true "Project ID"
+// @Param file formData file true "CSV file to upload"
+// @Success 202 {object} UploadJobResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /api/projects/{id}/load-csv [post]
+func (h *ProjectHandler) LoadCSV(w http.ResponseWriter, r *http.Request) {
+	projectId, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		handlers.RespondError(w, "Invalid project ID", http.StatusBadRequest)
+		return
+	}
+
+	// Parse multipart form (allow larger files for async processing)
+	if err := r.ParseMultipartForm(100 << 20); err != nil { // 100MB max
+		handlers.RespondError(w, "Failed to parse multipart form", http.StatusBadRequest)
+		return
+	}
+
+	// Get the uploaded file
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		handlers.RespondError(w, "No file provided", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	// Validate file extension
+	if !strings.HasSuffix(strings.ToLower(header.Filename), ".csv") {
+		handlers.RespondError(w, "File must be a CSV", http.StatusBadRequest)
+		return
+	}
+
+	// Start async CSV load and get job ID
+	jobID, err := h.projectService.LoadMultiColumnCSVAsync(projectId, file)
+	if err != nil {
+		handlers.RespondError(w, fmt.Sprintf("Failed to start CSV upload: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	fmt.Printf("[API] Created upload job %s for project %d\n", jobID, projectId)
+
+	// Return job ID immediately
+	handlers.RespondJSON(w, UploadJobResponse{JobID: jobID}, http.StatusAccepted)
+}
+
+// GetLoadCSVStatus godoc
+// @Summary Get CSV upload job status
+// @Description Check the progress of an async CSV upload job by job ID
+// @Tags projects
+// @Produce json
+// @Param id path int true "Project ID"
+// @Param job query string true "Job ID"
+// @Success 200 {object} JobStatusResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Router /api/projects/{id}/load-csv/status [get]
+func (h *ProjectHandler) GetLoadCSVStatus(w http.ResponseWriter, r *http.Request) {
+	projectId, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		handlers.RespondError(w, "Invalid project ID", http.StatusBadRequest)
+		return
+	}
+
+	jobID := r.URL.Query().Get("job")
+	if jobID == "" {
+		handlers.RespondError(w, "Job ID is required", http.StatusBadRequest)
+		return
+	}
+
+	// Get job status
+	job, err := h.projectService.GetJobStatus(jobID)
+	if err != nil {
+		handlers.RespondError(w, "Job not found", http.StatusNotFound)
+		return
+	}
+
+	// Verify job belongs to this project
+	if job.ProjectID != projectId {
+		handlers.RespondError(w, "Job does not belong to this project", http.StatusBadRequest)
+		return
+	}
+
+	// Convert to response format
+	layerDetails := make([]LayerStatusDetail, len(job.Layers))
+	for i, layer := range job.Layers {
+		layerDetails[i] = LayerStatusDetail{
+			LayerName:       layer.LayerName,
+			RowsWritten:     layer.RowsWritten,
+			TotalRows:       layer.TotalRows,
+			PercentComplete: layer.PercentComplete,
+			Status:          string(layer.Status),
+		}
+	}
+
+	response := JobStatusResponse{
+		JobID:       job.JobID,
+		ProjectID:   job.ProjectID,
+		Status:      string(job.Status),
+		Layers:      layerDetails,
+		Error:       job.Error,
+		CreatedAt:   job.CreatedAt,
+		UpdatedAt:   job.UpdatedAt,
+		CompletedAt: job.CompletedAt,
+	}
+
+	handlers.RespondJSON(w, response, http.StatusOK)
 }
 
 // Helper function to convert model to response

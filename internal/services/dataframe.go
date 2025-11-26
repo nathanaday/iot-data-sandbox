@@ -35,6 +35,9 @@ func (s *DataFrameService) CreateFromCSV(projectId int64, name string, csvReader
 
 // CreateFromGotaDataFrame creates a new DataFrame from a timeseries.TimeSeriesData
 func (s *DataFrameService) CreateFromGotaDataFrame(projectId int64, name string, tsData *timeseries.TimeSeriesData) (*models.DataFrame, error) {
+	startTime := time.Now()
+	fmt.Printf("[DataFrame Service] Starting CreateFromGotaDataFrame for '%s' (%d rows)\n", name, tsData.RowCount)
+
 	gotaDF := tsData.DataFrame
 
 	// Extract column definitions (skip timestamp column)
@@ -67,28 +70,111 @@ func (s *DataFrameService) CreateFromGotaDataFrame(projectId int64, name string,
 	}
 
 	// Save metadata
+	metadataStart := time.Now()
 	schema := df.ToSchema()
 	if err := s.store.SaveDataFrame(schema); err != nil {
 		return nil, fmt.Errorf("failed to save dataframe metadata: %w", err)
 	}
 	df.DataFrameId = schema.DataFrameId
+	fmt.Printf("[DataFrame Service] Metadata saved in %v (id: %d)\n", time.Since(metadataStart), df.DataFrameId)
 
 	// Create dynamic table
+	tableStart := time.Now()
 	if err := s.store.CreateDataFrameTable(df.DataFrameId, valueColumns); err != nil {
 		// Rollback: delete metadata
 		s.store.DeleteDataFrame(df.DataFrameId)
 		return nil, fmt.Errorf("failed to create dataframe table: %w", err)
 	}
+	fmt.Printf("[DataFrame Service] Table created in %v\n", time.Since(tableStart))
 
 	// Insert data
+	insertStart := time.Now()
 	if err := s.store.InsertDataFrameData(df.DataFrameId, gotaDF); err != nil {
 		// Rollback: delete everything
 		s.store.DeleteDataFrame(df.DataFrameId)
 		return nil, fmt.Errorf("failed to insert dataframe data: %w", err)
 	}
+	insertTime := time.Since(insertStart)
+	fmt.Printf("[DataFrame Service] Data inserted in %v (%d rows)\n", insertTime, tsData.RowCount-1)
 
 	// Load the data back into the model
 	df.Data = gotaDF
+
+	totalTime := time.Since(startTime)
+	fmt.Printf("[DataFrame Service] DataFrame '%s' created in %v total\n", name, totalTime)
+
+	return df, nil
+}
+
+// CreateFromGotaDataFrameWithProgress creates a DataFrame with progress reporting
+func (s *DataFrameService) CreateFromGotaDataFrameWithProgress(projectId int64, name string, tsData *timeseries.TimeSeriesData, progressCallback persistence.ProgressCallback) (*models.DataFrame, error) {
+	startTime := time.Now()
+	fmt.Printf("[DataFrame Service] Starting CreateFromGotaDataFrame for '%s' (%d rows)\n", name, tsData.RowCount)
+
+	gotaDF := tsData.DataFrame
+
+	// Extract column definitions (skip timestamp column)
+	columnNames := gotaDF.Names()
+	var columnDefs []models.ColumnDefinition
+	var valueColumns []string
+
+	for _, colName := range columnNames {
+		if colName == "timestamp" {
+			continue
+		}
+		columnDefs = append(columnDefs, models.ColumnDefinition{
+			Name:         colName,
+			Type:         "float64",
+			OriginalName: colName,
+		})
+		valueColumns = append(valueColumns, colName)
+	}
+
+	// Create DataFrame model
+	df := &models.DataFrame{
+		ProjectId:         projectId,
+		Name:              name,
+		Description:       "",
+		ColumnDefinitions: columnDefs,
+		RowCount:          tsData.RowCount - 1,
+		StartTime:         &tsData.StartTime,
+		EndTime:           &tsData.EndTime,
+		CreatedAt:         time.Now(),
+	}
+
+	// Save metadata
+	metadataStart := time.Now()
+	schema := df.ToSchema()
+	if err := s.store.SaveDataFrame(schema); err != nil {
+		return nil, fmt.Errorf("failed to save dataframe metadata: %w", err)
+	}
+	df.DataFrameId = schema.DataFrameId
+	fmt.Printf("[DataFrame Service] Metadata saved in %v (id: %d)\n", time.Since(metadataStart), df.DataFrameId)
+
+	// Create dynamic table
+	tableStart := time.Now()
+	if err := s.store.CreateDataFrameTable(df.DataFrameId, valueColumns); err != nil {
+		// Rollback: delete metadata
+		s.store.DeleteDataFrame(df.DataFrameId)
+		return nil, fmt.Errorf("failed to create dataframe table: %w", err)
+	}
+	fmt.Printf("[DataFrame Service] Table created in %v\n", time.Since(tableStart))
+
+	// Insert data with progress callback
+	insertStart := time.Now()
+	if err := s.store.InsertDataFrameDataWithProgress(df.DataFrameId, gotaDF, progressCallback); err != nil {
+		// Rollback: delete everything
+		s.store.DeleteDataFrame(df.DataFrameId)
+		return nil, fmt.Errorf("failed to insert dataframe data: %w", err)
+	}
+	insertTime := time.Since(insertStart)
+	fmt.Printf("[DataFrame Service] Data inserted in %v (%d rows)\n", insertTime, tsData.RowCount-1)
+
+	// Load the data back into the model
+	df.Data = gotaDF
+
+	totalTime := time.Since(startTime)
+	fmt.Printf("[DataFrame Service] DataFrame '%s' created in %v total\n", name, totalTime)
 
 	return df, nil
 }
