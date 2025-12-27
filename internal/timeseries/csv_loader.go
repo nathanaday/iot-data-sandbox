@@ -375,6 +375,57 @@ func getFilteredTimestamps(records []string, mask []bool) []string {
 	return filtered
 }
 
+// CreateFromTimestampsAndValues creates a TimeSeriesData from parallel slices of timestamps and values.
+// This is useful for creating output from tool execution results.
+func CreateFromTimestampsAndValues(timestamps []time.Time, values []float64, valueLabel string) (*TimeSeriesData, error) {
+	if len(timestamps) != len(values) {
+		return nil, &ValidationError{Message: "timestamps and values must have the same length"}
+	}
+
+	if len(timestamps) == 0 {
+		return &TimeSeriesData{
+			DataFrame:  dataframe.DataFrame{},
+			RowCount:   0,
+			TimeLabel:  "timestamp",
+			ValueLabel: valueLabel,
+		}, nil
+	}
+
+	// Create records with header row
+	timestampRecords := make([]string, len(timestamps)+1)
+	valueRecords := make([]string, len(values)+1)
+
+	timestampRecords[0] = "timestamp"
+	valueRecords[0] = "value"
+
+	var minTime, maxTime time.Time
+	for i, ts := range timestamps {
+		timestampRecords[i+1] = ts.Format(time.RFC3339)
+		valueRecords[i+1] = strconv.FormatFloat(values[i], 'f', -1, 64)
+
+		if i == 0 || ts.Before(minTime) {
+			minTime = ts
+		}
+		if i == 0 || ts.After(maxTime) {
+			maxTime = ts
+		}
+	}
+
+	timestampSeries := series.New(timestampRecords, series.String, "timestamp")
+	valueSeries := series.New(valueRecords, series.String, "value")
+
+	df := dataframe.New(timestampSeries, valueSeries)
+
+	return &TimeSeriesData{
+		DataFrame:  df,
+		StartTime:  minTime,
+		EndTime:    maxTime,
+		RowCount:   df.Nrow(),
+		TimeLabel:  "timestamp",
+		ValueLabel: valueLabel,
+	}, nil
+}
+
 // LoadAndSplitMultiColumnCSV loads a CSV and splits it into separate TimeSeriesData for each value column
 // Returns a slice of TimeSeriesData, one for each non-timestamp column
 func LoadAndSplitMultiColumnCSV(reader io.Reader) ([]*TimeSeriesData, error) {

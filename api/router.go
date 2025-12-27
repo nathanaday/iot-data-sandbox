@@ -78,6 +78,7 @@ func SetupRouter(store *persistence.Store) *chi.Mux {
 	r.Route("/api/tools", func(r chi.Router) {
 		r.Get("/", toolHandler.GetAllToolManifests)
 		r.Post("/call", toolHandler.CallTool)
+		r.Post("/execute", toolHandler.ExecuteTool)
 	})
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {

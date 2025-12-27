@@ -50,7 +50,49 @@ func createTrendWrapper(params map[string]interface{}) (interface{}, error) {
 }
 
 // Actual implementation with clean typed signature
+// Uses linear regression (least squares method) to create a trendline
 func createTrend(dataset []float64) []float64 {
-	// TODO: Implement trendline creation
-	return dataset
+	n := len(dataset)
+	if n == 0 {
+		return []float64{}
+	}
+	if n == 1 {
+		return []float64{dataset[0]}
+	}
+
+	// Calculate sums for linear regression
+	// y = mx + b where x is the index
+	var sumX, sumY, sumXY, sumX2 float64
+	for i, y := range dataset {
+		x := float64(i)
+		sumX += x
+		sumY += y
+		sumXY += x * y
+		sumX2 += x * x
+	}
+
+	nf := float64(n)
+	denominator := nf*sumX2 - sumX*sumX
+
+	// Handle edge case where all x values are the same (shouldn't happen with indices)
+	if denominator == 0 {
+		mean := sumY / nf
+		result := make([]float64, n)
+		for i := range result {
+			result[i] = mean
+		}
+		return result
+	}
+
+	// Calculate slope and intercept
+	slope := (nf*sumXY - sumX*sumY) / denominator
+	intercept := (sumY - slope*sumX) / nf
+
+	// Generate trendline values
+	result := make([]float64, n)
+	for i := range result {
+		result[i] = slope*float64(i) + intercept
+	}
+
+	return result
 }
