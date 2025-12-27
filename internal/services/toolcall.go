@@ -142,38 +142,41 @@ func (s *ToolCallService) ExecuteToolOnLayer(
 		executeResult.RowCount = len(v)
 		executeResult.Message = fmt.Sprintf("Created layer with %d data points", len(v))
 
-	default:
-		// For structured results (like MinMax, OutlierDetection), try to extract array if present
-		if resultMap, ok := result.(map[string]interface{}); ok {
-			if normalized, ok := resultMap["normalized"].([]float64); ok {
-				// MinMax result - use normalized values
-				layer, err := s.createLayerFromFloatArray(projectId, outputName, sourceTimestamps, normalized)
-				if err != nil {
-					return nil, fmt.Errorf("failed to create output layer: %w", err)
-				}
-				executeResult.Layer = layer
-				executeResult.ResultType = "object"
-				executeResult.RowCount = len(normalized)
-				executeResult.Message = fmt.Sprintf("Created layer with %d normalized data points", len(normalized))
-			} else if zScores, ok := resultMap["z_scores"].([]float64); ok {
-				// OutlierDetection result - use z_scores
-				layer, err := s.createLayerFromFloatArray(projectId, outputName, sourceTimestamps, zScores)
-				if err != nil {
-					return nil, fmt.Errorf("failed to create output layer: %w", err)
-				}
-				executeResult.Layer = layer
-				executeResult.ResultType = "object"
-				executeResult.RowCount = len(zScores)
-				executeResult.Message = fmt.Sprintf("Created layer with %d z-score data points", len(zScores))
-			} else {
-				// Structured result without array data - no layer created
-				executeResult.ResultType = "object"
-				executeResult.Message = "Tool returned structured result (no layer created)"
-			}
-		} else {
-			executeResult.ResultType = "unknown"
-			executeResult.Message = "Tool returned non-array result"
+	case tools.MinMaxResult:
+		// MinMax result - use normalized values
+		layer, err := s.createLayerFromFloatArray(projectId, outputName, sourceTimestamps, v.Normalized)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create output layer: %w", err)
 		}
+		executeResult.Layer = layer
+		executeResult.ResultType = "object"
+		executeResult.RowCount = len(v.Normalized)
+		executeResult.Message = fmt.Sprintf("Created layer with %d normalized data points (min=%.2f, max=%.2f)", len(v.Normalized), v.Min, v.Max)
+
+	case tools.OutlierResult:
+		// OutlierDetection result - extract only the outlier points with original values
+		outlierTimestamps := make([]time.Time, len(v.OutlierIndices))
+		outlierValues := make([]float64, len(v.OutlierIndices))
+		for i, idx := range v.OutlierIndices {
+			if idx < len(sourceTimestamps) && idx < len(dataset) {
+				outlierTimestamps[i] = sourceTimestamps[idx]
+				outlierValues[i] = dataset[idx]
+			}
+		}
+
+		layer, err := s.createLayerFromFloatArray(projectId, outputName, outlierTimestamps, outlierValues)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create output layer: %w", err)
+		}
+		executeResult.Layer = layer
+		executeResult.ResultType = "object"
+		executeResult.RowCount = len(v.OutlierIndices)
+		executeResult.Message = fmt.Sprintf("Created layer with %d outlier points (threshold: %.1f std dev)", len(v.OutlierIndices), v.Threshold)
+
+	default:
+		// Unknown structured result - no layer created
+		executeResult.ResultType = "unknown"
+		executeResult.Message = "Tool returned non-array result (no layer created)"
 	}
 
 	return executeResult, nil
