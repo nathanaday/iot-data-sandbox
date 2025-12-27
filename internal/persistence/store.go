@@ -69,6 +69,21 @@ func createTables(db *sql.DB) error {
     CREATE INDEX IF NOT EXISTS idx_data_layers_project ON data_layers(project_id);
     CREATE INDEX IF NOT EXISTS idx_data_layers_dataframe ON data_layers(dataframe_id);
     CREATE INDEX IF NOT EXISTS idx_data_layers_z_index ON data_layers(project_id, z_index);
+
+    CREATE TABLE IF NOT EXISTS llm_providers (
+        llm_provider_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        provider_type TEXT NOT NULL,
+        name TEXT NOT NULL,
+        api_key_encrypted TEXT,
+        base_url TEXT,
+        default_model TEXT,
+        is_enabled BOOLEAN NOT NULL DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_llm_providers_type ON llm_providers(provider_type);
+    CREATE INDEX IF NOT EXISTS idx_llm_providers_enabled ON llm_providers(is_enabled);
     `
 
 	_, err := db.Exec(schema)

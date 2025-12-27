@@ -7,9 +7,11 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/nathanaday/iot-data-sandbox/api/handlers/data"
+	"github.com/nathanaday/iot-data-sandbox/api/handlers/llm"
 	"github.com/nathanaday/iot-data-sandbox/api/handlers/tools"
 	"github.com/nathanaday/iot-data-sandbox/internal/jobs"
 	"github.com/nathanaday/iot-data-sandbox/internal/persistence"
+	"github.com/nathanaday/iot-data-sandbox/internal/services"
 	httpSwagger "github.com/swaggo/http-swagger"
 )
 
@@ -79,6 +81,27 @@ func SetupRouter(store *persistence.Store) *chi.Mux {
 		r.Get("/", toolHandler.GetAllToolManifests)
 		r.Post("/call", toolHandler.CallTool)
 		r.Post("/execute", toolHandler.ExecuteTool)
+	})
+
+	// LLM Provider routes
+	llmProviderService := services.NewLLMProviderService(store)
+	providerHandler := llm.NewProviderHandler(llmProviderService)
+	r.Route("/api/llm/providers", func(r chi.Router) {
+		r.Post("/", providerHandler.Create)
+		r.Get("/", providerHandler.List)
+		r.Get("/{id}", providerHandler.Get)
+		r.Put("/{id}", providerHandler.Update)
+		r.Delete("/{id}", providerHandler.Delete)
+	})
+
+	// Chat routes
+	chatJobManager := jobs.NewChatJobManager()
+	chatService := services.NewChatService(store, chatJobManager)
+	chatHandler := llm.NewChatHandler(chatService)
+	r.Route("/api/chat", func(r chi.Router) {
+		r.Post("/", chatHandler.SubmitMessage)
+		r.Get("/{jobId}", chatHandler.GetStatus)
+		r.Delete("/history", chatHandler.ClearHistory)
 	})
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
