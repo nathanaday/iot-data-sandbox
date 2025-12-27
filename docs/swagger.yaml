@@ -10,6 +10,32 @@ definitions:
       name:
         type: string
     type: object
+  data.DataFrameListResponse:
+    properties:
+      dataframes:
+        items:
+          $ref: '#/definitions/data.DataFrameMetadata'
+        type: array
+    type: object
+  data.DataFrameMetadata:
+    properties:
+      created_at:
+        type: string
+      dataframe_id:
+        type: integer
+      description:
+        type: string
+      end_time:
+        type: string
+      name:
+        type: string
+      project_id:
+        type: integer
+      row_count:
+        type: integer
+      start_time:
+        type: string
+    type: object
   data.DataPoint:
     properties:
       timestamp:
@@ -29,13 +55,6 @@ definitions:
         type: integer
       start_time:
         type: string
-    type: object
-  data.DataSourceListResponse:
-    properties:
-      data_sources:
-        items:
-          $ref: '#/definitions/data.DataSourceMetadata'
-        type: array
     type: object
   data.DataSourceMetadata:
     properties:
@@ -68,6 +87,27 @@ definitions:
       error:
         type: string
     type: object
+  data.JobStatusResponse:
+    properties:
+      completed_at:
+        type: string
+      created_at:
+        type: string
+      error:
+        type: string
+      job_id:
+        type: string
+      layers:
+        items:
+          $ref: '#/definitions/data.LayerStatusDetail'
+        type: array
+      project_id:
+        type: integer
+      status:
+        type: string
+      updated_at:
+        type: string
+    type: object
   data.LayerListResponse:
     properties:
       layers:
@@ -81,7 +121,7 @@ definitions:
         type: string
       data_layer_id:
         type: integer
-      data_source_id:
+      dataframe_id:
         type: integer
       is_visible:
         type: boolean
@@ -90,6 +130,19 @@ definitions:
       project_id:
         type: integer
       z_index:
+        type: integer
+    type: object
+  data.LayerStatusDetail:
+    properties:
+      layer_name:
+        type: string
+      percent_complete:
+        type: number
+      rows_written:
+        type: integer
+      status:
+        type: string
+      total_rows:
         type: integer
     type: object
   data.PreviewDataResponse:
@@ -135,9 +188,16 @@ definitions:
       is_visible:
         type: boolean
     type: object
+  data.UploadJobResponse:
+    properties:
+      job_id:
+        type: string
+    type: object
   data.UploadResponse:
     properties:
-      data_source_id:
+      created_at:
+        type: string
+      dataframe_id:
         type: integer
       end_time:
         type: string
@@ -147,12 +207,55 @@ definitions:
         type: integer
       start_time:
         type: string
-      time_label:
+    type: object
+  handlers.ErrorResponse:
+    properties:
+      error:
         type: string
-      value_label:
+    type: object
+  tools.ParameterDefinition:
+    properties:
+      description:
         type: string
-      when_created:
+      name:
         type: string
+      required:
+        type: boolean
+      type:
+        type: string
+    type: object
+  tools.ToolCategory:
+    enum:
+    - analysis
+    - filter
+    - transform
+    - ai
+    - other
+    type: string
+    x-enum-varnames:
+    - CategoryAnalysis
+    - CategoryFilter
+    - CategoryTransform
+    - CategoryAI
+    - CategoryOther
+  tools.ToolManifest:
+    properties:
+      category:
+        $ref: '#/definitions/tools.ToolCategory'
+      description:
+        type: string
+      documentation:
+        type: string
+      examples:
+        items:
+          type: string
+        type: array
+      name:
+        type: string
+      parameters:
+        items:
+          $ref: '#/definitions/tools.ParameterDefinition'
+        type: array
     type: object
 host: localhost:8080
 info:
@@ -162,7 +265,8 @@ info:
     API for managing and querying time series data from IoT sensors
 
     This API allows you to upload CSV files containing time series data,
-    query the data with time range filters, and manage datasources.
+    organize data in projects and layers, and query the data with time range filters.
+    All data is stored in SQLite with no external file dependencies.
 
     Supported timestamp formats: ISO8601, RFC3339, Unix timestamps (seconds/milliseconds), Julian Day
   license:
@@ -171,39 +275,44 @@ info:
   title: IoT Data Sandbox API
   version: "1.0"
 paths:
-  /api/datasources:
+  /api/dataframes:
     get:
-      description: Get a list of all registered datasources with their metadata
+      description: Get a list of all registered dataframes with their metadata
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/data.DataSourceListResponse'
+            $ref: '#/definitions/data.DataFrameListResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/data.ErrorResponse'
-      summary: List all datasources
+      summary: List all dataframes
       tags:
-      - datasources
+      - dataframes
     post:
       consumes:
       - multipart/form-data
       description: Upload a CSV file containing time series data. The CSV must have
-        'timestamp' and 'value' columns. Supports various timestamp formats (ISO8601,
-        Unix, Julian Day).
+        'timestamp' column and one or more value columns. Supports various timestamp
+        formats (ISO8601, Unix, Julian Day). Data is stored directly in SQLite.
       parameters:
       - description: CSV file to upload
         in: formData
         name: file
         required: true
         type: file
-      - description: Name for the datasource (defaults to filename)
+      - description: Name for the dataframe (defaults to filename)
         in: formData
         name: name
         type: string
+      - description: Project ID to associate the dataframe with
+        in: formData
+        name: project_id
+        required: true
+        type: integer
       produces:
       - application/json
       responses:
@@ -219,14 +328,14 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/data.ErrorResponse'
-      summary: Upload a CSV datasource
+      summary: Upload a CSV dataframe
       tags:
-      - datasources
-  /api/datasources/{id}:
+      - dataframes
+  /api/dataframes/{id}:
     delete:
-      description: Delete a datasource and its associated CSV file
+      description: Delete a dataframe and its associated data table
       parameters:
-      - description: Datasource ID
+      - description: DataFrame ID
         in: path
         name: id
         required: true
@@ -246,13 +355,13 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/data.ErrorResponse'
-      summary: Delete a datasource
+      summary: Delete a dataframe
       tags:
-      - datasources
+      - dataframes
     get:
-      description: Get metadata for a specific datasource by ID
+      description: Get metadata for a specific dataframe by ID
       parameters:
-      - description: Datasource ID
+      - description: DataFrame ID
         in: path
         name: id
         required: true
@@ -263,7 +372,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/data.DataSourceMetadata'
+            $ref: '#/definitions/data.DataFrameMetadata'
         "400":
           description: Bad Request
           schema:
@@ -272,49 +381,9 @@ paths:
           description: Not Found
           schema:
             $ref: '#/definitions/data.ErrorResponse'
-      summary: Get datasource metadata
+      summary: Get dataframe metadata
       tags:
-      - datasources
-  /api/datasources/{id}/data:
-    get:
-      description: Query time series data from a datasource with optional time range
-        filtering
-      parameters:
-      - description: Datasource ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      - description: Start time in RFC3339 format (e.g., 2024-01-01T00:00:00Z)
-        in: query
-        name: start_time
-        type: string
-      - description: End time in RFC3339 format (e.g., 2024-01-01T23:59:59Z)
-        in: query
-        name: end_time
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/data.DataQueryResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/data.ErrorResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/data.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/data.ErrorResponse'
-      summary: Query time series data
-      tags:
-      - datasources
+      - dataframes
   /api/layers/{id}:
     delete:
       description: Delete a layer by ID
@@ -767,6 +836,104 @@ paths:
       summary: Add a layer to a project
       tags:
       - projects
+  /api/projects/{id}/load-csv:
+    post:
+      consumes:
+      - multipart/form-data
+      description: 'Upload a multi-column CSV file asynchronously. Returns a job ID
+        immediately. Creates separate DataFrames and layers for each value column
+        (non-timestamp). For example, a CSV with columns (ts, humidity, smoke, temp)
+        will create three layers: humidity, smoke, and temp. Use GET /api/projects/{id}/load-csv/status?job={job_id}
+        to check progress.'
+      parameters:
+      - description: Project ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: CSV file to upload
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            $ref: '#/definitions/data.UploadJobResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+      summary: Load multi-column CSV into project (async)
+      tags:
+      - projects
+  /api/projects/{id}/load-csv/status:
+    get:
+      description: Check the progress of an async CSV upload job by job ID
+      parameters:
+      - description: Project ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Job ID
+        in: query
+        name: job
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/data.JobStatusResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/data.ErrorResponse'
+      summary: Get CSV upload job status
+      tags:
+      - projects
+  /api/tools:
+    get:
+      description: Use the ToolHandler and ToolCallService to fetch all registered
+        tools from "internal/tools" Go path
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/tools.ToolManifest'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Fetch all tools from the Tool module
+      tags:
+      - tools
   /api/ui/preview_data:
     post:
       consumes:

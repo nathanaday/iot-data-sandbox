@@ -1,6 +1,8 @@
 package services
 
 import (
+	"encoding/json"
+
 	"github.com/nathanaday/iot-data-sandbox/internal/persistence"
 	"github.com/nathanaday/iot-data-sandbox/internal/tools"
 )
@@ -15,11 +17,24 @@ func NewToolCallService(store *persistence.Store) *ToolCallService {
 	}
 }
 
-func (s *ToolCallService) GetToolManifest() ([]*tools.ToolManifest, error) {
-	manifests := tools.GetAllToolManifests()
-	tools := make([]*tools.ToolManifest, len(manifests))
-	for i, manifest := range manifests {
-		tools[i] = &manifest
+func (s *ToolCallService) GetToolManifests() []tools.ToolManifest {
+	return tools.GetAllToolManifests()
+}
+
+func (s *ToolCallService) CallTool(toolName string, parameters map[string]interface{}) (interface{}, error) {
+	return tools.CallTool(toolName, parameters)
+}
+
+// CallToolJSON executes a tool and returns the result as a JSON string
+func (s *ToolCallService) CallToolJSON(toolName string, parameters map[string]interface{}) (string, error) {
+	result, err := tools.CallTool(toolName, parameters)
+	if err != nil {
+		return "", err
 	}
-	return tools, nil
+
+	jsonBytes, err := json.Marshal(result)
+	if err != nil {
+		return "", err
+	}
+	return string(jsonBytes), nil
 }

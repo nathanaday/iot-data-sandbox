@@ -21,21 +21,21 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/api/datasources": {
+        "/api/dataframes": {
             "get": {
-                "description": "Get a list of all registered datasources with their metadata",
+                "description": "Get a list of all registered dataframes with their metadata",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "datasources"
+                    "dataframes"
                 ],
-                "summary": "List all datasources",
+                "summary": "List all dataframes",
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/data.DataSourceListResponse"
+                            "$ref": "#/definitions/data.DataFrameListResponse"
                         }
                     },
                     "500": {
@@ -47,7 +47,7 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "Upload a CSV file containing time series data. The CSV must have 'timestamp' and 'value' columns. Supports various timestamp formats (ISO8601, Unix, Julian Day).",
+                "description": "Upload a CSV file containing time series data. The CSV must have 'timestamp' column and one or more value columns. Supports various timestamp formats (ISO8601, Unix, Julian Day). Data is stored directly in SQLite.",
                 "consumes": [
                     "multipart/form-data"
                 ],
@@ -55,9 +55,9 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "datasources"
+                    "dataframes"
                 ],
-                "summary": "Upload a CSV datasource",
+                "summary": "Upload a CSV dataframe",
                 "parameters": [
                     {
                         "type": "file",
@@ -68,9 +68,16 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Name for the datasource (defaults to filename)",
+                        "description": "Name for the dataframe (defaults to filename)",
                         "name": "name",
                         "in": "formData"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Project ID to associate the dataframe with",
+                        "name": "project_id",
+                        "in": "formData",
+                        "required": true
                     }
                 ],
                 "responses": {
@@ -95,20 +102,20 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/datasources/{id}": {
+        "/api/dataframes/{id}": {
             "get": {
-                "description": "Get metadata for a specific datasource by ID",
+                "description": "Get metadata for a specific dataframe by ID",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "datasources"
+                    "dataframes"
                 ],
-                "summary": "Get datasource metadata",
+                "summary": "Get dataframe metadata",
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "Datasource ID",
+                        "description": "DataFrame ID",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -118,7 +125,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/data.DataSourceMetadata"
+                            "$ref": "#/definitions/data.DataFrameMetadata"
                         }
                     },
                     "400": {
@@ -136,15 +143,15 @@ const docTemplate = `{
                 }
             },
             "delete": {
-                "description": "Delete a datasource and its associated CSV file",
+                "description": "Delete a dataframe and its associated data table",
                 "tags": [
-                    "datasources"
+                    "dataframes"
                 ],
-                "summary": "Delete a datasource",
+                "summary": "Delete a dataframe",
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "Datasource ID",
+                        "description": "DataFrame ID",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -153,65 +160,6 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/data.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/data.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/data.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/datasources/{id}/data": {
-            "get": {
-                "description": "Query time series data from a datasource with optional time range filtering",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "datasources"
-                ],
-                "summary": "Query time series data",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "Datasource ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Start time in RFC3339 format (e.g., 2024-01-01T00:00:00Z)",
-                        "name": "start_time",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "End time in RFC3339 format (e.g., 2024-01-01T23:59:59Z)",
-                        "name": "end_time",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/data.DataQueryResponse"
-                        }
                     },
                     "400": {
                         "description": "Bad Request",
@@ -914,6 +862,146 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/projects/{id}/load-csv": {
+            "post": {
+                "description": "Upload a multi-column CSV file asynchronously. Returns a job ID immediately. Creates separate DataFrames and layers for each value column (non-timestamp). For example, a CSV with columns (ts, humidity, smoke, temp) will create three layers: humidity, smoke, and temp. Use GET /api/projects/{id}/load-csv/status?job={job_id} to check progress.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "projects"
+                ],
+                "summary": "Load multi-column CSV into project (async)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Project ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "CSV file to upload",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/data.UploadJobResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/data.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/data.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/data.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/projects/{id}/load-csv/status": {
+            "get": {
+                "description": "Check the progress of an async CSV upload job by job ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "projects"
+                ],
+                "summary": "Get CSV upload job status",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Project ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Job ID",
+                        "name": "job",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/data.JobStatusResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/data.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/data.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/tools": {
+            "get": {
+                "description": "Use the ToolHandler and ToolCallService to fetch all registered tools from \"internal/tools\" Go path",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tools"
+                ],
+                "summary": "Fetch all tools from the Tool module",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/tools.ToolManifest"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/ui/preview_data": {
             "post": {
                 "description": "Upload and preview a CSV file to see metadata without creating a datasource or saving the file",
@@ -976,6 +1064,46 @@ const docTemplate = `{
                 }
             }
         },
+        "data.DataFrameListResponse": {
+            "type": "object",
+            "properties": {
+                "dataframes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/data.DataFrameMetadata"
+                    }
+                }
+            }
+        },
+        "data.DataFrameMetadata": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "dataframe_id": {
+                    "type": "integer"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "end_time": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "project_id": {
+                    "type": "integer"
+                },
+                "row_count": {
+                    "type": "integer"
+                },
+                "start_time": {
+                    "type": "string"
+                }
+            }
+        },
         "data.DataPoint": {
             "type": "object",
             "properties": {
@@ -1004,17 +1132,6 @@ const docTemplate = `{
                 },
                 "start_time": {
                     "type": "string"
-                }
-            }
-        },
-        "data.DataSourceListResponse": {
-            "type": "object",
-            "properties": {
-                "data_sources": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/data.DataSourceMetadata"
-                    }
                 }
             }
         },
@@ -1066,6 +1183,38 @@ const docTemplate = `{
                 }
             }
         },
+        "data.JobStatusResponse": {
+            "type": "object",
+            "properties": {
+                "completed_at": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "job_id": {
+                    "type": "string"
+                },
+                "layers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/data.LayerStatusDetail"
+                    }
+                },
+                "project_id": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
         "data.LayerListResponse": {
             "type": "object",
             "properties": {
@@ -1086,7 +1235,7 @@ const docTemplate = `{
                 "data_layer_id": {
                     "type": "integer"
                 },
-                "data_source_id": {
+                "dataframe_id": {
                     "type": "integer"
                 },
                 "is_visible": {
@@ -1099,6 +1248,26 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "z_index": {
+                    "type": "integer"
+                }
+            }
+        },
+        "data.LayerStatusDetail": {
+            "type": "object",
+            "properties": {
+                "layer_name": {
+                    "type": "string"
+                },
+                "percent_complete": {
+                    "type": "number"
+                },
+                "rows_written": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "total_rows": {
                     "type": "integer"
                 }
             }
@@ -1170,10 +1339,21 @@ const docTemplate = `{
                 }
             }
         },
+        "data.UploadJobResponse": {
+            "type": "object",
+            "properties": {
+                "job_id": {
+                    "type": "string"
+                }
+            }
+        },
         "data.UploadResponse": {
             "type": "object",
             "properties": {
-                "data_source_id": {
+                "created_at": {
+                    "type": "string"
+                },
+                "dataframe_id": {
                     "type": "integer"
                 },
                 "end_time": {
@@ -1187,15 +1367,77 @@ const docTemplate = `{
                 },
                 "start_time": {
                     "type": "string"
-                },
-                "time_label": {
+                }
+            }
+        },
+        "handlers.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                }
+            }
+        },
+        "tools.ParameterDefinition": {
+            "type": "object",
+            "properties": {
+                "description": {
                     "type": "string"
                 },
-                "value_label": {
+                "name": {
                     "type": "string"
                 },
-                "when_created": {
+                "required": {
+                    "type": "boolean"
+                },
+                "type": {
                     "type": "string"
+                }
+            }
+        },
+        "tools.ToolCategory": {
+            "type": "string",
+            "enum": [
+                "analysis",
+                "filter",
+                "transform",
+                "ai",
+                "other"
+            ],
+            "x-enum-varnames": [
+                "CategoryAnalysis",
+                "CategoryFilter",
+                "CategoryTransform",
+                "CategoryAI",
+                "CategoryOther"
+            ]
+        },
+        "tools.ToolManifest": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "$ref": "#/definitions/tools.ToolCategory"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "documentation": {
+                    "type": "string"
+                },
+                "examples": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "parameters": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/tools.ParameterDefinition"
+                    }
                 }
             }
         }
@@ -1209,7 +1451,7 @@ var SwaggerInfo = &swag.Spec{
 	BasePath:         "/",
 	Schemes:          []string{},
 	Title:            "IoT Data Sandbox API",
-	Description:      "API for managing and querying time series data from IoT sensors\n\nThis API allows you to upload CSV files containing time series data,\nquery the data with time range filters, and manage datasources.\n\nSupported timestamp formats: ISO8601, RFC3339, Unix timestamps (seconds/milliseconds), Julian Day",
+	Description:      "API for managing and querying time series data from IoT sensors\n\nThis API allows you to upload CSV files containing time series data,\norganize data in projects and layers, and query the data with time range filters.\nAll data is stored in SQLite with no external file dependencies.\n\nSupported timestamp formats: ISO8601, RFC3339, Unix timestamps (seconds/milliseconds), Julian Day",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

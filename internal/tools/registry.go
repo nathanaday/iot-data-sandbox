@@ -1,5 +1,7 @@
 package tools
 
+import "fmt"
+
 type ToolCategory string
 
 const (
@@ -26,12 +28,19 @@ type ParameterDefinition struct {
 	Required    bool   `json:"required"`
 }
 
-// Global registry
+// ToolFunc is the standard signature all tool implementations must conform to.
+// Parameters are passed as a map (typically from JSON), results returned as interface{}.
+type ToolFunc func(params map[string]interface{}) (interface{}, error)
+
+// Manifest registry
 var toolRegistry = make(map[string]ToolManifest)
 
-func RegisterTool(manifest ToolManifest, implementation interface{}) {
+// Tool implementation registry
+var toolImplementationRegistry = make(map[string]ToolFunc)
+
+func RegisterTool(manifest ToolManifest, implementation ToolFunc) {
 	toolRegistry[manifest.Name] = manifest
-	// TODO register with LangChain here
+	toolImplementationRegistry[manifest.Name] = implementation
 }
 
 // Get all tool manifests for API export
@@ -41,4 +50,21 @@ func GetAllToolManifests() []ToolManifest {
 		manifests = append(manifests, manifest)
 	}
 	return manifests
+}
+
+func GetImplementationByName(toolName string) (ToolFunc, error) {
+	implementation, ok := toolImplementationRegistry[toolName]
+	if !ok {
+		return nil, fmt.Errorf("implementation not found: %s", toolName)
+	}
+	return implementation, nil
+}
+
+// CallTool is a convenience function to look up and execute a tool
+func CallTool(toolName string, params map[string]interface{}) (interface{}, error) {
+	impl, err := GetImplementationByName(toolName)
+	if err != nil {
+		return nil, err
+	}
+	return impl(params)
 }
