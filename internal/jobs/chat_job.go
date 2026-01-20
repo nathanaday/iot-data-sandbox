@@ -11,24 +11,37 @@ import (
 type ChatJobStatus string
 
 const (
-	ChatJobPending   ChatJobStatus = "pending"
-	ChatJobStreaming ChatJobStatus = "streaming"
-	ChatJobComplete  ChatJobStatus = "complete"
-	ChatJobFailed    ChatJobStatus = "failed"
+	ChatJobPending     ChatJobStatus = "pending"
+	ChatJobToolCalling ChatJobStatus = "tool_calling"
+	ChatJobStreaming   ChatJobStatus = "streaming"
+	ChatJobComplete    ChatJobStatus = "complete"
+	ChatJobFailed      ChatJobStatus = "failed"
 )
+
+// ToolCallRecord represents a record of a tool call execution
+type ToolCallRecord struct {
+	ToolName   string    `json:"tool_name"`
+	Arguments  string    `json:"arguments"`
+	Result     string    `json:"result,omitempty"`
+	Success    bool      `json:"success"`
+	ExecutedAt time.Time `json:"executed_at"`
+}
 
 // ChatJob represents an active chat completion request
 type ChatJob struct {
-	JobID          string        `json:"job_id"`
-	ConversationID string        `json:"conversation_id"`
-	Status         ChatJobStatus `json:"status"`
-	ResponseText   string        `json:"response_text"`
-	InputTokens    int           `json:"input_tokens"`
-	OutputTokens   int           `json:"output_tokens"`
-	Error          string        `json:"error,omitempty"`
-	CreatedAt      time.Time     `json:"created_at"`
-	UpdatedAt      time.Time     `json:"updated_at"`
-	CompletedAt    *time.Time    `json:"completed_at,omitempty"`
+	JobID            string           `json:"job_id"`
+	ConversationID   string           `json:"conversation_id"`
+	Status           ChatJobStatus    `json:"status"`
+	ResponseText     string           `json:"response_text"`
+	InputTokens      int              `json:"input_tokens"`
+	OutputTokens     int              `json:"output_tokens"`
+	Error            string           `json:"error,omitempty"`
+	CreatedAt        time.Time        `json:"created_at"`
+	UpdatedAt        time.Time        `json:"updated_at"`
+	CompletedAt      *time.Time       `json:"completed_at,omitempty"`
+	ToolCalls        []ToolCallRecord `json:"tool_calls,omitempty"`
+	CurrentIteration int              `json:"current_iteration"`
+	MaxIterations    int              `json:"max_iterations"`
 }
 
 // ChatJobManager manages active chat jobs
@@ -127,6 +140,50 @@ func (m *ChatJobManager) FailJob(jobID string, errorMsg string) {
 		job.UpdatedAt = time.Now()
 		now := time.Now()
 		job.CompletedAt = &now
+	}
+}
+
+// SetToolCalling marks the job as executing tool calls
+func (m *ChatJobManager) SetToolCalling(jobID string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if job, exists := m.jobs[jobID]; exists {
+		job.Status = ChatJobToolCalling
+		job.UpdatedAt = time.Now()
+	}
+}
+
+// AddToolCall records a tool call execution
+func (m *ChatJobManager) AddToolCall(jobID string, record ToolCallRecord) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if job, exists := m.jobs[jobID]; exists {
+		job.ToolCalls = append(job.ToolCalls, record)
+		job.UpdatedAt = time.Now()
+	}
+}
+
+// SetIteration updates the current iteration count
+func (m *ChatJobManager) SetIteration(jobID string, iteration int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if job, exists := m.jobs[jobID]; exists {
+		job.CurrentIteration = iteration
+		job.UpdatedAt = time.Now()
+	}
+}
+
+// SetMaxIterations sets the maximum number of iterations
+func (m *ChatJobManager) SetMaxIterations(jobID string, maxIterations int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if job, exists := m.jobs[jobID]; exists {
+		job.MaxIterations = maxIterations
+		job.UpdatedAt = time.Now()
 	}
 }
 

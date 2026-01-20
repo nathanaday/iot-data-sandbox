@@ -26,6 +26,7 @@ type ChatRequest struct {
 	Message        string `json:"message"`
 	ConversationID string `json:"conversation_id,omitempty"`
 	ProviderID     int64  `json:"provider_id"`
+	ProjectID      int64  `json:"project_id"`
 }
 
 type ClearHistoryRequest struct {
@@ -39,17 +40,28 @@ type ChatJobResponse struct {
 	ConversationID string `json:"conversation_id"`
 }
 
+type ToolCallInfo struct {
+	ToolName   string `json:"tool_name"`
+	Arguments  string `json:"arguments"`
+	Result     string `json:"result,omitempty"`
+	Success    bool   `json:"success"`
+	ExecutedAt string `json:"executed_at"`
+}
+
 type ChatStatusResponse struct {
-	JobID          string  `json:"job_id"`
-	ConversationID string  `json:"conversation_id"`
-	Status         string  `json:"status"`
-	ResponseText   string  `json:"response_text"`
-	InputTokens    int     `json:"input_tokens"`
-	OutputTokens   int     `json:"output_tokens"`
-	Error          string  `json:"error,omitempty"`
-	CreatedAt      string  `json:"created_at"`
-	UpdatedAt      string  `json:"updated_at"`
-	CompletedAt    *string `json:"completed_at,omitempty"`
+	JobID            string         `json:"job_id"`
+	ConversationID   string         `json:"conversation_id"`
+	Status           string         `json:"status"`
+	ResponseText     string         `json:"response_text"`
+	InputTokens      int            `json:"input_tokens"`
+	OutputTokens     int            `json:"output_tokens"`
+	Error            string         `json:"error,omitempty"`
+	CreatedAt        string         `json:"created_at"`
+	UpdatedAt        string         `json:"updated_at"`
+	CompletedAt      *string        `json:"completed_at,omitempty"`
+	ToolCalls        []ToolCallInfo `json:"tool_calls,omitempty"`
+	CurrentIteration int            `json:"current_iteration,omitempty"`
+	MaxIterations    int            `json:"max_iterations,omitempty"`
 }
 
 // SubmitMessage godoc
@@ -80,7 +92,12 @@ func (h *ChatHandler) SubmitMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.chatService.SubmitMessage(req.ConversationID, req.Message, req.ProviderID)
+	if req.ProjectID == 0 {
+		handlers.RespondError(w, "Project ID is required for tool-enabled chat", http.StatusBadRequest)
+		return
+	}
+
+	result, err := h.chatService.SubmitMessage(req.ConversationID, req.Message, req.ProviderID, req.ProjectID)
 	if err != nil {
 		handlers.RespondError(w, "Failed to submit message: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -116,20 +133,36 @@ func (h *ChatHandler) GetStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response := ChatStatusResponse{
-		JobID:          job.JobID,
-		ConversationID: job.ConversationID,
-		Status:         string(job.Status),
-		ResponseText:   job.ResponseText,
-		InputTokens:    job.InputTokens,
-		OutputTokens:   job.OutputTokens,
-		Error:          job.Error,
-		CreatedAt:      job.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:      job.UpdatedAt.Format(time.RFC3339),
+		JobID:            job.JobID,
+		ConversationID:   job.ConversationID,
+		Status:           string(job.Status),
+		ResponseText:     job.ResponseText,
+		InputTokens:      job.InputTokens,
+		OutputTokens:     job.OutputTokens,
+		Error:            job.Error,
+		CreatedAt:        job.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:        job.UpdatedAt.Format(time.RFC3339),
+		CurrentIteration: job.CurrentIteration,
+		MaxIterations:    job.MaxIterations,
 	}
 
 	if job.CompletedAt != nil {
 		completedAt := job.CompletedAt.Format(time.RFC3339)
 		response.CompletedAt = &completedAt
+	}
+
+	// Convert tool calls
+	if len(job.ToolCalls) > 0 {
+		response.ToolCalls = make([]ToolCallInfo, len(job.ToolCalls))
+		for i, tc := range job.ToolCalls {
+			response.ToolCalls[i] = ToolCallInfo{
+				ToolName:   tc.ToolName,
+				Arguments:  tc.Arguments,
+				Result:     tc.Result,
+				Success:    tc.Success,
+				ExecutedAt: tc.ExecutedAt.Format(time.RFC3339),
+			}
+		}
 	}
 
 	handlers.RespondJSON(w, response, http.StatusOK)

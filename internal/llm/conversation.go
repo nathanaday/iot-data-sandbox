@@ -10,12 +10,22 @@ import (
 	"github.com/tmc/langchaingo/memory"
 )
 
+// ToolCallInfo represents information about a tool call made by the assistant
+type ToolCallInfo struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Arguments string `json:"arguments"`
+}
+
 // ChatMessage represents a single message in a conversation
 type ChatMessage struct {
-	Role       string    `json:"role"` // "user", "assistant", "system"
-	Content    string    `json:"content"`
-	Timestamp  time.Time `json:"timestamp"`
-	TokenCount int       `json:"token_count,omitempty"`
+	Role       string         `json:"role"` // "user", "assistant", "system", "tool"
+	Content    string         `json:"content"`
+	Timestamp  time.Time      `json:"timestamp"`
+	TokenCount int            `json:"token_count,omitempty"`
+	ToolCalls  []ToolCallInfo `json:"tool_calls,omitempty"`   // For assistant messages with tool calls
+	ToolCallID string         `json:"tool_call_id,omitempty"` // For tool result messages
+	ToolName   string         `json:"tool_name,omitempty"`    // For tool result messages
 }
 
 // Conversation represents a chat session
@@ -139,6 +149,63 @@ func (m *ConversationManager) AddAssistantMessage(ctx context.Context, conversat
 	return active.Memory.ChatHistory.AddAIMessage(ctx, content)
 }
 
+// AddAssistantToolCalls adds an assistant message with tool calls to the conversation
+func (m *ConversationManager) AddAssistantToolCalls(ctx context.Context, conversationID string, toolCalls []llms.ToolCall) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	active, exists := m.conversations[conversationID]
+	if !exists {
+		return nil // Conversation not found
+	}
+
+	// Convert to our ToolCallInfo format
+	calls := make([]ToolCallInfo, len(toolCalls))
+	for i, tc := range toolCalls {
+		calls[i] = ToolCallInfo{
+			ID:        tc.ID,
+			Name:      tc.FunctionCall.Name,
+			Arguments: tc.FunctionCall.Arguments,
+		}
+	}
+
+	// Add to local message history
+	msg := ChatMessage{
+		Role:      "assistant",
+		Content:   "",
+		Timestamp: time.Now(),
+		ToolCalls: calls,
+	}
+	active.Conversation.Messages = append(active.Conversation.Messages, msg)
+	active.Conversation.UpdatedAt = time.Now()
+
+	return nil
+}
+
+// AddToolResult adds a tool result message to the conversation
+func (m *ConversationManager) AddToolResult(ctx context.Context, conversationID string, toolCallID string, toolName string, result string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	active, exists := m.conversations[conversationID]
+	if !exists {
+		return nil // Conversation not found
+	}
+
+	// Add to local message history
+	msg := ChatMessage{
+		Role:       "tool",
+		Content:    result,
+		Timestamp:  time.Now(),
+		ToolCallID: toolCallID,
+		ToolName:   toolName,
+	}
+	active.Conversation.Messages = append(active.Conversation.Messages, msg)
+	active.Conversation.UpdatedAt = time.Now()
+
+	return nil
+}
+
 // GetMessageHistory returns the full message history for a conversation
 func (m *ConversationManager) GetMessageHistory(conversationID string) []ChatMessage {
 	m.mu.RLock()
@@ -156,6 +223,7 @@ func (m *ConversationManager) GetMessageHistory(conversationID string) []ChatMes
 }
 
 // GetLangChainMessages returns the LangChain message format for LLM calls
+// This builds messages from our local history to properly handle tool calls
 func (m *ConversationManager) GetLangChainMessages(ctx context.Context, conversationID string) ([]llms.MessageContent, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -165,20 +233,52 @@ func (m *ConversationManager) GetLangChainMessages(ctx context.Context, conversa
 		return nil, nil
 	}
 
-	// Get messages from LangChain memory
-	history, err := active.Memory.ChatHistory.Messages(ctx)
-	if err != nil {
-		return nil, err
-	}
+	messages := make([]llms.MessageContent, 0, len(active.Conversation.Messages))
 
-	// Convert to MessageContent format
-	messages := make([]llms.MessageContent, len(history))
-	for i, msg := range history {
-		role := llms.ChatMessageTypeHuman
-		if msg.GetType() == llms.ChatMessageTypeAI {
-			role = llms.ChatMessageTypeAI
+	for _, msg := range active.Conversation.Messages {
+		switch msg.Role {
+		case "user":
+			messages = append(messages, llms.TextParts(llms.ChatMessageTypeHuman, msg.Content))
+
+		case "assistant":
+			if len(msg.ToolCalls) > 0 {
+				// Assistant message with tool calls - each ToolCall is added as a separate part
+				parts := make([]llms.ContentPart, len(msg.ToolCalls))
+				for i, tc := range msg.ToolCalls {
+					parts[i] = llms.ToolCall{
+						ID:   tc.ID,
+						Type: "function",
+						FunctionCall: &llms.FunctionCall{
+							Name:      tc.Name,
+							Arguments: tc.Arguments,
+						},
+					}
+				}
+				messages = append(messages, llms.MessageContent{
+					Role:  llms.ChatMessageTypeAI,
+					Parts: parts,
+				})
+			} else {
+				// Regular assistant message
+				messages = append(messages, llms.TextParts(llms.ChatMessageTypeAI, msg.Content))
+			}
+
+		case "tool":
+			// Tool result message
+			messages = append(messages, llms.MessageContent{
+				Role: llms.ChatMessageTypeTool,
+				Parts: []llms.ContentPart{
+					llms.ToolCallResponse{
+						ToolCallID: msg.ToolCallID,
+						Name:       msg.ToolName,
+						Content:    msg.Content,
+					},
+				},
+			})
+
+		case "system":
+			messages = append(messages, llms.TextParts(llms.ChatMessageTypeSystem, msg.Content))
 		}
-		messages[i] = llms.TextParts(role, msg.GetContent())
 	}
 
 	return messages, nil
