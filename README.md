@@ -1,5 +1,9 @@
 # iot-data-sandbox
 
+<img width="1669" height="1111" alt="Screenshot 2026-01-20 at 10 47 29 AM" src="https://github.com/user-attachments/assets/74afac69-f587-4a7b-9b0e-ad786b7b91af" />
+
+---
+
 This is a Go-based IoT data sandbox project that enables LLM-driven analysis and manipulation of time-series data. 
 
 Users interact with the system through natural language prompts:
@@ -8,7 +12,6 @@ Users interact with the system through natural language prompts:
 
 An agentic AI agent orchestrates a registered set of tools to fulfill these requests, ranging from simple statistical analysis to AI/ML forecasting models and anomaly detection.
 
-This project is in very early stages and not yet functional.
 
 ### References
 
@@ -42,44 +45,7 @@ The entity hierarchy follows the pattern shown below:
 
 
 
-## Workflow Example: Complete Project Setup
 
-```go
-// 1. Create project
-p, _ := projectSvc.Create("My IoT Dashboard")
-
-// 2. Add layer
-layer, _ := projectSvc.AddLayer(p.ProjectId, "Sensor 1")
-
-// 3. Load data into layer
-layerSvc.LoadFromCSV(layer.DataLayerId, "sensor_data.csv")
-
-// 4. Configure display
-layerSvc.UpdateColor(layer.DataLayerId, "#4caf50")
-layerSvc.SetVisibility(layer.DataLayerId, true)
-
-// 5. Add another layer with different view
-layer2, _ := layerSvc.Duplicate(layer.DataLayerId, "Sensor 1 (Zoomed)")
-start := time.Now().Add(-24 * time.Hour)
-end := time.Now()
-layerSvc.UpdateDisplayWindow(layer2.DataLayerId, &start, &end)
-
-// 6. Save everything
-projectSvc.SaveAll(p)
-```
-
-### Generate Swag Docs
-
-Run from the project root:
-
-```
-~/go/bin/swag init -g cmd/server/main.go -o docs
-```
-
-### CSV Demo Sources
-
-IOT Sensor Telemetry
-https://www.kaggle.com/datasets/garystafford/environmental-sensor-data-132k
 
 NA CO2 Emissions
 https://github.com/rishabh89007/Time_Series_Datasets/blob/main/NA%20Emissions.csv
